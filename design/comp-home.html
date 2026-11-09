@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Redtape: how much red tape, in three places</title>
+<meta name="description" content="Type one activity and three places. Redtape lines up every licence, fee and wait from official government pages, each with its proof.">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton:wght@400&family=Work+Sans:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../public/assets/site.css"></head>
+<body>
+<header id="bar"><a class="mark disp" href="#top">Redtape</a><nav><a href="#grid">The comparison</a><a href="#how">How it works</a><a href="#saved">Saved</a><a href="#api">API</a><a class="btn" href="#ask">Measure yours</a></nav></header>
+<main id="top">
+<div class="hero" data-ink="light">
+  <div class="upper"></div>
+  <h1 class="disp"><span class="l">How much <span class="slot"><img src="../public/assets/civil-war-red-tape-02-redeemed-csa.jpg" alt="red tape: bundles of 1860s bond coupons tied with red cloth tape" width="1920" height="1236"></span></span><span class="l">to open a cafe?</span></h1>
+  <div class="under disp" aria-hidden="true" data-t="to open a cafe?"></div>
+  <div class="ask" id="ask">
+    <p>Type one activity and three places. Redtape lines up every licence, fee and wait from official government pages, each with its proof.</p>
+    <form action="#grid"><label class="wide"><span>the activity</span><input name="activity" value="open a small cafe, 20 seats, no alcohol"></label>
+    <label><span>place 1</span><input name="place1" value="Austin"></label><label><span>place 2</span><input name="place2" value="Manchester"></label><label><span>place 3</span><input name="place3" value="Dubai mainland"></label>
+    <button class="btn" type="submit">Measure it</button></form>
+  </div>
+</div>
+<section class="grid" id="grid" data-ink="light">
+  <div class="top"><h2 class="disp in">Same row, three places</h2><p class="in">Every requirement sits beside its match in the other two places. A fee the official page does not state is left open, never guessed.</p></div>
+  <table class="in">
+    <thead><tr><th></th><th scope="col"><div class="place disp">Austin</div><div class="tape" role="img" aria-label="7 requirements"><i class="full"></i><i class="full"></i><i class="open"></i><i class="open"></i><i class="open"></i><i class="full"></i><i class="open"></i></div><div class="tot"><b>3 of 7 fees stated</b><br>longest stated wait: Not stated</div></th><th scope="col"><div class="place disp">Manchester</div><div class="tape" role="img" aria-label="7 requirements"><i class="full"></i><i class="full"></i><i class="open"></i><i class="open"></i><i class="open"></i><i class="full"></i><i class="full"></i></div><div class="tot"><b>4 of 7 fees stated</b><br>longest stated wait: 28 days before trading</div></th><th scope="col"><div class="place disp">Dubai mainland</div><div class="tape" role="img" aria-label="7 requirements"><i class="open"></i><i class="open"></i><i class="open"></i><i class="open"></i><i class="open"></i><i class="open"></i><i class="open"></i></div><div class="tot"><b>0 of 7 fees stated</b><br>longest stated wait: 5 working days</div></th></tr></thead>
+    <tbody><tr><th scope="row">Legal entity registration</th><td data-p="Austin">
+  <p class="what">Texas LLC Certificate of Formation</p>
+  <p class="fee">from USD 300</p>
+  <p class="wait gap">wait not stated</p>
+  <p class="src"><a href="https://www.sos.state.tx.us/corp/forms/806_boc.pdf">sos.state.tx.us</a>, checked 9 Nov 2026</p></td><td data-p="Manchester">
+  <p class="what">Companies House Incorporation (Limited Company)</p>
+  <p class="fee">from GBP 100</p>
+  <p class="wait gap">wait not stated</p>
+  <p class="src"><a href="https://www.gov.uk/government/publications/companies-house-fees/companies-house-fees">gov.uk</a>, checked 9 Nov 2026</p></td><td data-p="Dubai mainland">
+  <p class="what">DET Commercial Trade Licence (Mainland Company)</p>
+  <p class="fee gap">not stated</p>
+  <p class="wait gap">wait not stated</p>
+  <p class="src"><a href="https://www.dubaidet.gov.ae/en/licences-and-permits/business-licensing">dubaidet.gov.ae</a>, checked 9 Nov 2026</p></td></tr>
+<tr><th scope="row">Activity licence or permit</th><td data-p="Austin">
+  <p class="what">Food Enterprise Operating Permit</p>
+  <p class="fee">from USD 309</p>
+  <p class="wait gap">wait not stated</p>
+  <p class="src"><a href="https://www.austintexas.gov/health/programs/fixed-food-establishments">austintexas.gov</a>, checked 9 Nov 2026</p></td><td data-p="Manchester">
+  <p class="what">Food Business Premises Registration</p>
+  <p class="fee">free</p>
+  <p class="wait">added to the Food Register within 5 working days of…</p>
+  <p class="src"><a href="https://www.manchester.gov.uk/directory_record/451861/food_-_premises_registration">manchester.gov.uk</a>, checked 9 Nov 2026</p></td><td data-p="Dubai mainland">
+  <p class="what">Dubai Municipality Food Establishment Permit</p>
+  <p class="fee gap">not stated</p>
+  <p class="wait gap">wait not stated</p>
+  <p class="src"><a href="https://www.dm.gov.ae/municipality-business/food-safety-department-2/important-information-to-food-establishment/">dm.gov.ae</a>, checked 9 Nov 2026</p></td></tr>
+<tr><th scope="row">Premises or location approval</th><td data-p="Austin">
+  <p class="what">Certificate of Occupancy (Change of Use)</p>
+  <p class="fee gap">not stated</p>
+  <p class="wait">approximately two weeks for Change of Use reviews as of…</p>
+  <p class="src"><a href="https://www.austintexas.gov/development-services/small-business-permitting">austintexas.gov</a>, checked 9 Nov 2026</p></td><td data-p="Manchester">
+  <p class="what">Planning Permission (Change of Use)</p>
+  <p class="fee gap">not stated</p>
+  <p class="wait gap">wait not stated</p>
+  <p class="src"><a href="https://www.manchester.gov.uk/planning-and-regeneration/planning/planning-permission/check-if-you-need-planning-permission">manchester.gov.uk</a>, checked 9 Nov 2026</p></td><td data-p="Dubai mainland">
+  <p class="what">Layout Assessment for Food Establishment Licensing</p>
+  <p class="fee gap">not stated</p>
+  <p class="wait gap">wait not stated</p>
+  <p class="src"><a href="https://www.dm.gov.ae/municipality-business/food-traders-establishments/">dm.gov.ae</a>, checked 9 Nov 2026</p></td></tr>
+<tr><th scope="row">Operator or staff certification</th><td data-p="Austin">
+  <p class="what">Certified Food Manager + Food Handler Certificate</p>
+  <p class="fee gap">not stated</p>
+  <p class="wait gap">wait not stated</p>
+  <p class="src"><a href="https://www.austintexas.gov/health/programs/food-personnel-requirements">austintexas.gov</a>, checked 9 Nov 2026</p></td><td data-p="Manchester">
+  <p class="what">Food Hygiene Training</p>
+  <p class="fee gap">not stated</p>
+  <p class="wait gap">wait not stated</p>
+  <p class="src"><a href="https://www.food.gov.uk/business-guidance/getting-ready-to-start-your-food-business">food.gov.uk</a>, checked 9 Nov 2026</p></td><td data-p="Dubai mainland">
+  <p class="what">Person in Charge (PIC) Certification + Food Handler Training</p>
+  <p class="fee gap">not stated</p>
+  <p class="wait">5 working days for trainer approval; individual…</p>
+  <p class="src"><a href="https://dmpmedia.dm.gov.ae/uploads/2024/02/3.-DM-FSD-GU64-Requirements-for-Integrated-Training-Management-System-for-Food-Establishments-2.pdf">dmpmedia.dm.gov.ae</a>, checked 9 Nov 2026</p></td></tr>
+<tr><th scope="row">Insurance required by law</th><td data-p="Austin">
+  <p class="what">Workers' Compensation Insurance</p>
+  <p class="fee gap">not stated</p>
+  <p class="wait gap">wait not stated</p>
+  <p class="src"><a href="https://www.tdi.texas.gov/wc/employer/index.html">tdi.texas.gov</a>, checked 9 Nov 2026</p></td><td data-p="Manchester">
+  <p class="what">Employers' Liability Insurance</p>
+  <p class="fee gap">not stated</p>
+  <p class="wait gap">wait not stated</p>
+  <p class="src"><a href="https://www.gov.uk/employers-liability-insurance">gov.uk</a>, checked 9 Nov 2026</p></td><td data-p="Dubai mainland">
+  <p class="what">Employer/Staff Insurance</p>
+  <p class="fee gap">not stated</p>
+  <p class="wait gap">wait not stated</p>
+  <p class="src"><a href="https://www.dm.gov.ae/municipality-business/food-traders-establishments/">dm.gov.ae</a>, checked 9 Nov 2026</p></td></tr>
+<tr><th scope="row">Tax registration</th><td data-p="Austin">
+  <p class="what">Texas Sales and Use Tax Permit</p>
+  <p class="fee">free</p>
+  <p class="wait gap">wait not stated</p>
+  <p class="src"><a href="https://comptroller.texas.gov/taxes/sales/faq/permit.php">comptroller.texas.gov</a>, checked 9 Nov 2026</p></td><td data-p="Manchester">
+  <p class="what">HMRC Self Assessment / Corporation Tax Registration + VAT…</p>
+  <p class="fee">free</p>
+  <p class="wait gap">wait not stated</p>
+  <p class="src"><a href="https://www.gov.uk/register-for-vat">gov.uk</a>, checked 9 Nov 2026</p></td><td data-p="Dubai mainland">
+  <p class="what">UAE Corporate Tax Registration + VAT Registration</p>
+  <p class="fee gap">not stated</p>
+  <p class="wait gap">wait not stated</p>
+  <p class="src"><a href="https://tax.gov.ae/en/services/corporate.tax.registration.aspx">tax.gov.ae</a>, checked 9 Nov 2026</p></td></tr>
+<tr><th scope="row">Ongoing filings</th><td data-p="Austin">
+  <p class="what">Texas Franchise Tax Report</p>
+  <p class="fee gap">not stated</p>
+  <p class="wait">not applicable</p>
+  <p class="src"><a href="https://www.sos.state.tx.us/corp/instructions/206.shtml">sos.state.tx.us</a>, checked 9 Nov 2026</p></td><td data-p="Manchester">
+  <p class="what">Companies House Confirmation Statement (if limited company)</p>
+  <p class="fee">from GBP 50</p>
+  <p class="wait">not applicable</p>
+  <p class="src"><a href="https://www.gov.uk/guidance/filing-your-companys-confirmation-statement">gov.uk</a>, checked 9 Nov 2026</p></td><td data-p="Dubai mainland">
+  <p class="what">FoodWatch Platform Compliance + Trade Licence Renewal</p>
+  <p class="fee gap">not stated</p>
+  <p class="wait">not applicable</p>
+  <p class="src"><a href="https://dmpmedia.dm.gov.ae/uploads/2024/02/3.-DM-FSD-GU64-Requirements-for-Integrated-Training-Management-System-for-Food-Establishments-2.pdf">dmpmedia.dm.gov.ae</a>, checked 9 Nov 2026</p></td></tr></tbody>
+  </table>
+  <div class="key"><span><i></i>one requirement, its fee stated on an official page</span><span><i class="open"></i>one requirement, fee not stated: left open</span></div>
+</section>
+<section class="verdict" data-ink="dark" data-bg="tape">
+  <h2 class="disp in">Shortest tape: Manchester</h2>
+  <p class="why in">Manchester is the easiest place to start. Food premises registration is free, cannot be refused, and simply requires 28 days' notice. The company formation process is straightforward (GBP 100 online) with no complex pre-approval chain. There is no activity licence fee, no mandatory pre-opening inspection that blocks trading…</p>
+  <ul class="in"><li><b>Austin</b>Moderate complexity and moderate cost; the layered permit system (plan review → pre-opening inspection → operating permit) is transparent and fees are published, but adds up-front cost and sequencing time…</li><li><b>Manchester</b>Lowest barriers and lowest fees; free food registration, no mandatory pre-approval inspection, and well-documented compliance pathway make this the most accessible jurisdiction for a first-time café operator.</li><li><b>Dubai mainland</b>Highest regulatory complexity; multiple parallel approval chains (DET trade licence, DM food permit, layout assessment, PIC certification, FoodWatch compliance, UAE corporate tax) with most official fees…</li></ul>
+</section>
+<section class="proof" data-ink="dark" data-bg="ink">
+  <h2 class="disp in">No sentence, no claim</h2>
+  <p class="say in">Each item carries the sentence it rests on, copied from the official page, and the day Redtape read that page again to find it.</p>
+  <div class="sheet in"><p class="meta">Austin · Legal entity registration</p><h3>Texas LLC Certificate of Formation</h3>
+    <blockquote>“Certificate of formation for a Texas entity (except nonprofit corporation, cooperative association, PA or LP) (Forms 201, 203, 205, 206) <mark>$300</mark>”</blockquote>
+    <p class="foot"><a href="https://www.sos.state.tx.us/corp/forms/806_boc.pdf">sos.state.tx.us</a> · Texas Secretary of State</p>
+    <p class="ok">Read again on 9 Nov 2026: the sentence is on the page. Fee: USD 300 (LLC/corporation); USD 23 DBA filing with Travis County Clerk.</p></div>
+</section>
+<section class="names" data-ink="dark" data-bg="ink"><p class="in"><b>Every item comes from</b> <span>Texas Secretary of State</span>, <span>City of Austin</span>, <span>City of Austin Development Services Department</span>, <span>Austin Public Health</span>, <span>Texas Department of Insurance</span>, <span>Texas Comptroller of Public Accounts</span>, <span>Companies House</span>, <span>Manchester City Council</span>, <span>Manchester City Council Planning Department</span>.</p></section>
+<section class="how" id="how" data-ink="dark" data-bg="ink">
+<div class="panel"><img src="../public/assets/austin-august-2019-31-austin-city-hall.jpg" alt="Austin City Hall, Texas" loading="lazy" width="1920" height="1280"><h3 class="verb disp">Find</h3><p class="note">TinyFish Search finds the government sites of each place, so the research is held to official pages only.<small>Pictured: Austin City Hall, Texas</small></p></div>
+<div class="panel"><img src="../public/assets/manchester-town-hall.jpg" alt="Manchester Town Hall, England" loading="lazy" width="1920" height="1280"><h3 class="verb disp">Read</h3><p class="note">TinyResearch reads them and returns every licence, permit, filing, fee and wait. This comparison took 5 minutes.<small>Pictured: Manchester Town Hall, England</small></p></div>
+<div class="panel"><img src="../public/assets/civil-war-red-tape-03-redeemed-csa.jpg" alt="Bundles of redeemed bond coupons tied in red tape, 1860s" loading="lazy" width="1920" height="1280"><h3 class="verb disp">Check</h3><p class="note">Redtape opens each official page again with TinyFish Fetch and looks for the quoted sentence. No sentence, no claim.<small>Pictured: Bundles of redeemed bond coupons tied in red tape, 1860s</small></p></div>
+<div class="panel"><img src="../public/assets/dubai-municipality-building-88679337.jpg" alt="Dubai Municipality building" loading="lazy" width="1920" height="1280"><h3 class="verb disp">Watch</h3><p class="note">A saved comparison is watched with TinyFish Monitor. When an official page changes, its item says so.<small>Pictured: Dubai Municipality building</small></p></div>
+</section>
+<section class="stats" data-ink="light"><h2 style="position:absolute;clip:rect(0 0 0 0);width:1px;height:1px;overflow:hidden">This comparison in figures</h2>
+  <p class="in">This comparison read <b>50&nbsp;official pages</b> in <b>5&nbsp;minutes</b>, found <b>21&nbsp;requirements</b> in <b>3&nbsp;places</b>, and left <b>14&nbsp;fees</b> open because no official page states them.</p></section>
+<section class="law" data-ink="dark" data-bg="deep">
+  <h2 class="disp in">Then ask a lawyer</h2>
+  <p class="say in">Where the official pages are unclear or disagree, Redtape does not pick a side. It writes the question down for the person who can settle it.</p>
+  <ol class="in"><li><b>Austin, Texas</b>The official Certificate of Occupancy page does not state any specific fee for a commercial CO or Change of Use review for a food establishment. The fee structure for new CO issuance is not published on the DSD page. [</li><li><b>Austin, Texas</b>The Food Enterprise Operating Permit page states a pre-opening inspection is required before a permit can be issued, but does not state a processing timeline for the inspection to be scheduled or for the permit to be issued…</li><li><b>Austin, Texas</b>The official sources do not state the fee an individual pays to sit a Certified Food Manager exam (only the licensing fees for testing-site operators are listed by DSHS). [</li></ol>
+</section>
+<section class="saved" id="saved" data-ink="light">
+  <h2 class="disp in">Already measured</h2>
+  <div class="rows in">
+    <a href="#grid"><b>Open a small cafe</b><b>3 places</b><span>Austin · Manchester · Dubai, checked 9 Nov 2026</span></a>
+    <a href="#grid"><b>Run a commercial drone business</b><b>3 places</b><span>United Kingdom · Singapore · Dubai, checked 9 Nov 2026</span></a>
+  </div>
+</section>
+<section class="close" id="api" data-ink="dark" data-bg="ink">
+  <h2 class="disp in">Now measure yours</h2>
+  <div class="row in"><p>One activity, three places, about ten minutes. The comparison also comes as a spreadsheet, as JSON and from an API.</p><a class="btn" href="#ask">Measure it</a></div>
+</section>
+</main>
+<footer data-ink="dark" data-bg="ink">
+  <div class="top"><p class="invite disp in">Hand it to<br>your lawyer</p><ul class="in"><li><a href="#grid">The comparison</a></li><li><a href="#how">How it works</a></li><li><a href="#saved">Saved</a></li><li><a href="#api">API</a></li></ul></div>
+  <div class="legal"><p>Built by Hamdan Esmail for the TinyFish Compliance Map bounty. A starting point to confirm with a lawyer, not legal advice.</p><p>Pictures: &quot;Civil War Red Tape 02 (redeemed CSA bond coupons)&quot; by National Museum of American History, CC BY-SA 3.0, via Wikimedia Commons · &quot;Civil War Red Tape 03 (redeemed CSA bond coupons)&quot; by National Museum of American History, CC BY-SA 3.0, via Wikimedia Commons · &quot;Manchester town hall&quot; by Julius (User:Juliux), CC BY-SA 3.0, via Wikimedia Commons · &quot;Austin August 2019 31 (Austin City Hall)&quot; by Michael Barera, CC BY-SA 4.0, via Wikimedia Commons · &quot;Dubai Municipality building 88679337&quot; by samuelnabi, CC BY-SA 2.0, via Flickr</p></div>
+  <div class="big disp" aria-hidden="true">Redtape</div>
+</footer>
+<script>
+const io=new IntersectionObserver((es)=>es.forEach((e,i)=>{if(e.isIntersecting){setTimeout(()=>e.target.classList.add("seen"),i*80);io.unobserve(e.target)}}),{threshold:.12});
+document.querySelectorAll(".in").forEach((el)=>io.observe(el));
+const bar=document.getElementById("bar"),fields=[...document.querySelectorAll("[data-ink]")];
+const ink=()=>{const y=bar.offsetHeight/2;const f=fields.find((el)=>{const r=el.getBoundingClientRect();return r.top<=y&&r.bottom>y});bar.classList.toggle("on-dark",!!f&&f.dataset.ink==="dark");bar.dataset.bg=f?f.dataset.bg||"paper":"paper"};
+addEventListener("scroll",ink,{passive:true});ink();
+const names=[...document.querySelectorAll(".names span")];let k=0;if(names.length)setInterval(()=>{names.forEach((n)=>n.classList.remove("lit"));names[k++%names.length].classList.add("lit")},2000);
+</script>
+</body></html>
