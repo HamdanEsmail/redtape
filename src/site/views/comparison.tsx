@@ -2,17 +2,10 @@
 // full, each cell a details element, the verdict, the lawyer's questions, the exports), or
 // failed (the failure sentence and a link back to the form). An unknown id is a 404 in the shell.
 import type { ComparisonView } from "../../compare/read";
-import { DISCLAIMER, NO_ITEM } from "../../compare/words";
+import { DISCLAIMER, NO_ITEM, RUNNING } from "../../compare/words";
 import { Exports, Grid, Hero, LawyerQuestions, Verdict } from "../components";
 import { firstSentence, placeAskLine, realItems, shortPlace } from "../format";
 import { Bar, Footer, HOME_DESCRIPTION, Layout } from "../layout";
-
-const RUNNING: Record<string, string> = {
-  queued: "Waiting for the comparison before it to finish.",
-  finding: "Finding the official government sites of each place.",
-  researching: "TinyResearch is reading the official pages. This takes about five to ten minutes.",
-  checking: "Reading every official page again to find each quoted sentence.",
-};
 
 export const REFRESH_SECONDS = 5;
 
@@ -47,10 +40,15 @@ function AskStatus(props: { view: ComparisonView }) {
       {view.state === "ready" ? (
         <>
           {place !== null && view.verdict.paragraph.trim() !== "" ? (
-            <p class="lead">
-              {`Shortest tape: ${shortPlace(place)}`} {firstSentence(view.verdict.paragraph)}
-              {view.verdict.cost_warning !== null ? ` ${view.verdict.cost_warning}` : ""}
-            </p>
+            <>
+              <p class="lead">
+                <b>Shortest tape: {shortPlace(place)}</b>
+              </p>
+              <p class="lead">
+                {firstSentence(view.verdict.paragraph)}
+                {view.verdict.cost_warning !== null ? ` ${view.verdict.cost_warning}` : ""}
+              </p>
+            </>
           ) : (
             view.figures.map((fig) => <p class="lead">{placeAskLine(fig)}</p>)
           )}
@@ -143,19 +141,21 @@ export function ComparisonPage(props: { view: ComparisonView; featuredId: string
   );
 }
 
-export function NotFoundPage(props: { featuredId: string | null }) {
+export function NotFoundPage(props: { featuredId: string | null; comparison: boolean }) {
   const gridHref = props.featuredId !== null ? `/comparisons/${props.featuredId}` : "/#grid";
+  const sentence = props.comparison ? "No comparison here." : "There is no page here.";
   return (
-    <Layout title="Redtape: no comparison here" description={HOME_DESCRIPTION}>
+    <Layout title={props.comparison ? "Redtape: no comparison here" : "Redtape: no page here"} description={HOME_DESCRIPTION}>
       <Bar gridHref={gridHref} askHref="/#ask" />
       <main id="top">
         <Hero activity={null}>
           <div class="ask">
-            <p>No comparison here.</p>
+            <p>{sentence}</p>
             <p>
-              <a class="btn" href="/#ask">
-                Measure yours
-              </a>
+              <a href="/">Home</a>
+            </p>
+            <p>
+              <a href="/comparisons">Saved comparisons</a>
             </p>
           </div>
         </Hero>

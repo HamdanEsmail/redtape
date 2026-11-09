@@ -5,230 +5,35 @@ import { env } from "cloudflare:workers";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { recordSpend } from "../src/core/spend";
 import { startPublicComparison } from "../src/compare/create";
-import { DAILY_LIMIT, LAYOUT_FAIL, SPEND_STOP, VISITOR_LIMIT } from "../src/compare/words";
+import { LAYOUT_FAIL, SPEND_STOP } from "../src/compare/words";
+import {
+  PUBLIC_COMPARISONS_PER_DAY,
+  PUBLIC_TTL_DAYS,
+  SPEND_STOP_USD,
+} from "../src/core/limits";
 import worker from "../src/index";
 import { CAFE_CHARS, fitLine, savedActivity, toActivity } from "../src/site/format";
 import { callWorker } from "./helpers/app";
+import {
+  DEFAULT_VERDICT,
+  PLACES,
+  T0,
+  clean,
+  firstScreen,
+  insertComparison,
+  insertItem,
+  page,
+  readyComparison,
+} from "./helpers/comparison";
 import { fetchMock } from "./helpers/fetch-mock";
 
-const T0 = "2026-11-09T10:00:00.000Z";
-const PLACES = ["Port Aldren", "Northhaven", "Eastmere"] as const;
-const CATS = ["Legal entity registration", "Activity licence", "Premises approval", "Tax registration"] as const;
 const NOW = new Date(T0);
-
-async function clean() {
-  await env.DB.batch([
-    env.DB.prepare("DELETE FROM items"),
-    env.DB.prepare("DELETE FROM place_sites"),
-    env.DB.prepare("DELETE FROM comparisons"),
-    env.DB.prepare("DELETE FROM spend"),
-    env.DB.prepare("DELETE FROM public_use"),
-    env.DB.prepare("UPDATE run_slot SET comparison_id = NULL, since = NULL"),
-  ]);
-}
 
 beforeEach(async () => {
   await clean();
   fetchMock.activate();
 });
 afterEach(() => fetchMock.reset());
-
-const page = async (path: string, init?: RequestInit, bindings?: Parameters<typeof callWorker>[2]) => {
-  const res = await callWorker(path, init, bindings);
-  return { res, html: await res.text() };
-};
-
-/** The first screen: the hero through the next section or the end of the page. */
-function firstScreen(html: string): string {
-  const from = html.indexOf('class="hero"');
-  const rest = from < 0 ? html : html.slice(from);
-  const next = rest.search(/<section|<footer/);
-  return next < 0 ? rest : rest.slice(0, next);
-}
-
-const DEFAULT_VERDICT = {
-  paragraph: "Port Aldren is the easiest place to start: fees are published and the wait is short.",
-  tradeoffs: [
-    { place: "Port Aldren", line: "published fees and a short wait" },
-    { place: "Northhaven", line: "a longer wait and more filings" },
-    { place: "Eastmere", line: "mixed currencies on the same forms" },
-  ],
-};
-
-async function insertComparison(over: {
-  id: string;
-  activity?: string;
-  state: string;
-  kept?: number;
-  failed_reason?: string | null;
-  sources_count?: number | null;
-  research_minutes?: number | null;
-  verdict?: { paragraph: string; tradeoffs: { place: string; line: string }[] } | null;
-}): Promise<void> {
-  const ready = over.state === "ready";
-  const checking = over.state === "checking" || ready;
-  const verdict = over.verdict !== undefined ? over.verdict : ready ? DEFAULT_VERDICT : null;
-  await env.DB.prepare(
-    `INSERT INTO comparisons (
-       id, activity, places_json, reuse_key, origin, kept, state, failed_reason, dropped_items,
-       sources_count, categories_json, verdict_json, unclear_json, research_minutes,
-       created_at, started_at, finished_at
-     ) VALUES (?, ?, ?, ?, 'admin', ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  )
-    .bind(
-      over.id,
-      over.activity ?? "open a small bakery",
-      JSON.stringify([...PLACES]),
-      `key-${over.id}`,
-      over.kept ?? 0,
-      over.state,
-      over.failed_reason ?? null,
-      over.sources_count ?? (ready ? 12 : null),
-      checking ? JSON.stringify([...CATS]) : null,
-      verdict === null ? null : JSON.stringify(verdict),
-      ready
-        ? JSON.stringify([
-            "Port Aldren - The premises stamp fee is not on the licensing page.",
-            "Northhaven - The food permit page does not say how long an inspection takes.",
-            "Eastmere - The shop licence does not say whether seating is included.",
-          ])
-        : null,
-      over.research_minutes ?? (ready ? 7 : null),
-      T0,
-      T0,
-      ready ? T0 : null,
-    )
-    .run();
-}
-
-async function insertItem(over: {
-  comparison_id: string;
-  place_index: number;
-  category_n: number;
-  name: string;
-  fee?: string;
-  time?: string;
-  required?: string;
-  authority?: string;
-  url?: string | null;
-  quote?: string;
-  check_kind?: string | null;
-  check_state?: string;
-  fee_lead?: { title: string; url: string } | null;
-}): Promise<void> {
-  const url = over.url === undefined ? `https://licensing.aldren.gov.example/${over.name.replace(/\s+/g, "-")}` : over.url;
-  let host: string | null = null;
-  if (url !== null && url !== "") {
-    try {
-      host = new URL(url).hostname.replace(/^www\./, "");
-    } catch {
-      host = null;
-    }
-  }
-  const done = over.check_kind !== null && over.check_kind !== undefined;
-  await env.DB.prepare(
-    `INSERT INTO items (
-       id, comparison_id, place_index, category_n, name, required, authority, fee, time_to,
-       renewal, ongoing, url, host, quote, check_state, check_kind, checked_at, fee_lead_json
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'annual', 'none', ?, ?, ?, ?, ?, ?, ?)`,
-  )
-    .bind(
-      crypto.randomUUID(),
-      over.comparison_id,
-      over.place_index,
-      over.category_n,
-      over.name,
-      over.required ?? "yes",
-      over.authority ?? "Aldren Licensing Office",
-      over.fee ?? "USD 300",
-      over.time ?? "10 days",
-      url,
-      host,
-      over.quote ?? "A bakery needs a food licence from the Aldren Licensing Office, fee USD 300 on the official page.",
-      over.check_state ?? (done ? "done" : "unchecked"),
-      over.check_kind ?? null,
-      done ? T0 : null,
-      over.fee_lead === undefined || over.fee_lead === null ? null : JSON.stringify(over.fee_lead),
-    )
-    .run();
-}
-
-/** A kept ready comparison with a gap, a missing cell, mixed fees and a javascript: address. */
-async function readyComparison(
-  id = "readygaps001",
-  over?: { verdict?: { paragraph: string; tradeoffs: { place: string; line: string }[] } | null },
-): Promise<string> {
-  await insertComparison({ id, kept: 1, state: "ready", ...over });
-  await insertItem({
-    comparison_id: id,
-    place_index: 0,
-    category_n: 1,
-    name: "Aldren bakery company filing",
-    fee: "USD 300 (filing); USD 23 name reservation",
-    quote: "A bakery files a company form with the Aldren Companies Desk. The fee is USD 300.",
-    check_kind: "found",
-  });
-  await insertItem({
-    comparison_id: id,
-    place_index: 0,
-    category_n: 2,
-    name: "Aldren food licence",
-    fee: "free",
-    check_kind: "found",
-  });
-  await insertItem({
-    comparison_id: id,
-    place_index: 0,
-    category_n: 3,
-    name: "Aldren premises stamp",
-    fee: "not stated",
-    time: "not stated",
-    url: "javascript:alert(1)",
-    check_kind: "quote_missing",
-    fee_lead: { title: "Aldren premises fees", url: "https://licensing.aldren.gov.example/fees" },
-  });
-  await insertItem({
-    comparison_id: id,
-    place_index: 1,
-    category_n: 1,
-    name: "Northhaven company roll",
-    fee: "GBP 100",
-    authority: "Northhaven Civic Hall",
-    url: "https://permits.northhaven.gov.example/company",
-    check_kind: "found_fee_missing",
-  });
-  await insertItem({
-    comparison_id: id,
-    place_index: 1,
-    category_n: 2,
-    name: "Northhaven food permit",
-    fee: "not stated",
-    authority: "Northhaven Civic Hall",
-    url: "https://permits.northhaven.gov.example/food",
-    check_kind: "unreadable",
-  });
-  await insertItem({
-    comparison_id: id,
-    place_index: 2,
-    category_n: 1,
-    name: "Eastmere trade licence",
-    fee: "USD 200",
-    authority: "Eastmere Trade Desk",
-    url: "https://trade.eastmere.gov.example/licence",
-    check_kind: "found",
-  });
-  await insertItem({
-    comparison_id: id,
-    place_index: 2,
-    category_n: 2,
-    name: "Eastmere shop permit",
-    fee: "GBP 50",
-    authority: "Eastmere Trade Desk",
-    url: "https://trade.eastmere.gov.example/shop",
-    check_kind: "found",
-  });
-  return id;
-}
 
 const formPost = (fields: Record<string, string>, ip = "203.0.113.5") =>
   callWorker("/comparisons", {
@@ -444,6 +249,17 @@ describe("the site", () => {
     expect(screen.indexOf("See every requirement")).toBeLessThan(screen.indexOf(disclaimer));
   });
 
+  it("puts Shortest tape on its own line, then the verdict's first sentence", async () => {
+    const id = await readyComparison("leadline0001");
+    const { html } = await page(`/comparisons/${id}`);
+    const screen = firstScreen(html);
+    expect(screen).toMatch(/<b>\s*Shortest tape: Port Aldren\s*<\/b>/);
+    const heading = screen.match(/<p class="lead">[\s\S]*?<\/p>/g) ?? [];
+    expect(heading.some((p) => /Shortest tape: Port Aldren/.test(p) && !/Port Aldren is the easiest/.test(p))).toBe(true);
+    expect(heading.some((p) => /Port Aldren is the easiest place to start/.test(p) && !/Shortest tape/.test(p))).toBe(true);
+    expect(screen).not.toContain("Shortest tape: Port Aldren Port Aldren");
+  });
+
   it("puts the cost sentence on the first screen only when the named place cannot be judged on cost", async () => {
     const id = "costwarn0001";
     await insertComparison({ id, kept: 1, state: "ready" });
@@ -562,5 +378,184 @@ describe("the public form limits", () => {
     });
     expect(res.status).toBe(303);
     expect(res.headers.get("location")).toBe(`/comparisons/${started.id}`);
+  });
+});
+
+describe("the lawyer's sheet", () => {
+  it("prints the activity, the places, every unclear rule, every question kind, then the items", async () => {
+    const id = await readyComparison("sheetready01");
+    await insertItem({
+      comparison_id: id,
+      place_index: 0,
+      category_n: 4,
+      name: "Aldren tax number",
+      fee: "not stated",
+      time: "not stated",
+      url: null,
+      check_kind: "no_url",
+    });
+    const api = (await (await callWorker(`/api/comparisons/${id}`)).json()) as {
+      activity: string;
+      places: string[];
+      unclear: string[];
+      questions: { kind: string; text: string; lead: { title: string; url: string } | null }[];
+    };
+    const kinds = new Set(api.questions.map((q) => q.kind));
+    expect(kinds).toEqual(
+      new Set(["fee_not_stated", "time_not_stated", "quote_missing", "fee_not_on_page", "unreadable", "no_url"]),
+    );
+    const { res, html } = await page(`/comparisons/${id}/brief`);
+    expect(res.status).toBe(200);
+    expect(html).toContain(api.activity);
+    for (const place of api.places) expect(html).toContain(place);
+    for (const line of api.unclear) expect(html).toContain(line);
+    for (const q of api.questions) expect(html).toContain(q.text);
+    expect(html).toContain("A page on the same site that may hold the fee: Aldren premises fees,");
+    expect(html).toContain("https://licensing.aldren.gov.example/fees");
+    expect(html).toContain("A starting point to confirm with a lawyer, not legal advice.");
+    const unclearAt = html.indexOf(api.unclear[0]!);
+    const questionAt = html.indexOf(api.questions[0]!.text);
+    const itemAt = html.indexOf("Aldren bakery company filing");
+    expect(unclearAt).toBeGreaterThan(-1);
+    expect(unclearAt).toBeLessThan(questionAt);
+    expect(questionAt).toBeLessThan(itemAt);
+  });
+
+  it("shows the state sentence and a link to the comparison when it is not ready", async () => {
+    await insertComparison({ id: "queued000001", state: "queued" });
+    const queued = await page("/comparisons/queued000001/brief");
+    expect(queued.res.status).toBe(200);
+    expect(queued.html).toContain("Waiting for the comparison before it to finish.");
+    expect(queued.html).toContain('href="/comparisons/queued000001"');
+    expect(queued.html).not.toContain("What is the fee for");
+
+    await insertComparison({ id: "failed000001", state: "failed", failed_reason: "layout" });
+    const failed = await page("/comparisons/failed000001/brief");
+    expect(failed.html).toContain(LAYOUT_FAIL);
+    expect(failed.html).toContain('href="/comparisons/failed000001"');
+  });
+});
+
+describe("saved comparisons", () => {
+  it("lists kept ready comparisons and recent visitor ones, newest first, and not expired ones", async () => {
+    await insertComparison({
+      id: "keptold00001",
+      state: "ready",
+      kept: 1,
+      activity: "open a small bakery",
+      created_at: "2026-11-08T10:00:00.000Z",
+      finished_at: "2026-11-08T10:10:00.000Z",
+    });
+    await insertComparison({
+      id: "keptnew00001",
+      state: "ready",
+      kept: 1,
+      activity: "run a small mill",
+      created_at: "2026-11-09T09:00:00.000Z",
+      finished_at: "2026-11-09T09:10:00.000Z",
+    });
+    await insertComparison({
+      id: "visitnew0001",
+      state: "ready",
+      kept: 0,
+      origin: "public",
+      activity: "open a small kiln",
+      created_at: "2026-11-09T12:00:00.000Z",
+      finished_at: "2026-11-09T12:10:00.000Z",
+      expires_at: new Date(Date.now() + 6 * 86_400_000).toISOString(),
+    });
+    await insertComparison({
+      id: "visitold0001",
+      state: "ready",
+      kept: 0,
+      origin: "public",
+      activity: "open a small stall",
+      created_at: "2026-11-01T10:00:00.000Z",
+      finished_at: "2026-11-01T10:10:00.000Z",
+      expires_at: new Date(Date.now() - 86_400_000).toISOString(),
+    });
+    const { res, html } = await page("/comparisons");
+    expect(res.status).toBe(200);
+    expect(html).toContain("Open a small kiln");
+    expect(html).toContain("Run a small mill");
+    expect(html).toContain("Open a small bakery");
+    expect(html).not.toContain("Open a small stall");
+    expect(html).toContain("checked 9 Nov 2026");
+    expect(html).toContain(`${PUBLIC_TTL_DAYS} days`);
+    expect(html.indexOf("Open a small kiln")).toBeLessThan(html.indexOf("Run a small mill"));
+    expect(html.indexOf("Run a small mill")).toBeLessThan(html.indexOf("Open a small bakery"));
+  });
+});
+
+describe("about, how, api and not found", () => {
+  it("reads spend from the ledger on the about page", async () => {
+    await recordSpend(env.DB, "research_run", 2, "run-1");
+    await recordSpend(env.DB, "fetch", 0, "page-a");
+    await recordSpend(env.DB, "fetch", 0, "page-b");
+    await recordSpend(env.DB, "search", 0, "find-a");
+    const { res, html } = await page("/about");
+    expect(res.status).toBe(200);
+    expect(html).toContain("$2.00");
+    expect(html).toContain("2 reads");
+    expect(html).toContain("1 search");
+    expect(html).toContain(`$${SPEND_STOP_USD.toFixed(2)}`);
+    expect(html).toContain(`${PUBLIC_COMPARISONS_PER_DAY} new comparisons`);
+    expect(html).toContain("salted hash");
+    expect(html).toContain("https://creativecommons.org/licenses/by-sa/3.0/");
+  });
+
+  it("serves how it works and the API page", async () => {
+    const how = await page("/how");
+    expect(how.res.status).toBe(200);
+    expect(how.html).toContain("Find");
+    expect(how.html).toContain("government domain");
+    expect(how.html).toContain("Read again on 9 Nov 2026: the sentence is on the page.");
+    expect(how.html).toContain("not stated");
+    expect(how.html).toContain("Currencies are never converted");
+
+    await readyComparison("apiready0001");
+    const api = await page("/api");
+    expect(api.res.status).toBe(200);
+    expect(api.html).toContain("curl");
+    expect(api.html).toContain("/api/comparisons");
+    expect(api.html).toContain("No key is needed to read");
+    expect(api.html).toContain("https://redtape.test/api/comparisons/apiready0001");
+  });
+
+  it("answers 404 in the shell for an unknown page path and an unknown id, and JSON for an API path", async () => {
+    const missing = await page("/no-such-page");
+    expect(missing.res.status).toBe(404);
+    expect(missing.html).toContain("There is no page here.");
+    expect(missing.html).not.toContain("No comparison here.");
+    expect(missing.html).toContain('href="/"');
+    expect(missing.html).toContain('href="/comparisons"');
+
+    const unknown = await page("/comparisons/zzzzzzzzzzzz");
+    expect(unknown.res.status).toBe(404);
+    expect(unknown.html).toContain("No comparison here.");
+    expect(unknown.html).not.toContain("There is no page here.");
+
+    const api = await callWorker("/api/nope");
+    expect(api.status).toBe(404);
+    expect(await api.json()).toEqual({ error: "not_found" });
+  });
+
+  it("puts title, description, canonical, Open Graph, Twitter and favicon tags on a page", async () => {
+    const { html } = await page("/");
+    expect(html).toContain('rel="canonical" href="https://redtape.test/"');
+    expect(html).toContain('property="og:image" content="https://redtape.test/assets/social.png"');
+    expect(html).toContain('name="twitter:card" content="summary_large_image"');
+    expect(html).toContain('href="/favicon.svg"');
+  });
+});
+
+describe("every page behind the switch", () => {
+  it("answers JSON 404 for the other screens while the site is switched off", async () => {
+    const paths = ["/how", "/about", "/api", "/comparisons", "/comparisons/queued000001/brief"];
+    for (const path of paths) {
+      const res = await callWorker(path, undefined, { SITE_ENABLED: "0" });
+      expect(res.status).toBe(404);
+      expect(await res.json()).toEqual({ error: "not_found" });
+    }
   });
 });

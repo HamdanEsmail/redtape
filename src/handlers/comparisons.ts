@@ -4,12 +4,12 @@ import type { Env } from "../env";
 import { advanceLater } from "../compare/advance";
 import { checkInput, importComparison, startPublicComparison } from "../compare/create";
 import { listComparisons, readComparison } from "../compare/read";
+import { csvResponse } from "../site/csv-response";
 import { TinyFishError } from "../tinyfish/client";
 
 export const comparisonsRouter = new Hono<{ Bindings: Env }>();
 
 const FINISHED = new Set(["ready", "failed"]);
-const ID = /^[a-z0-9]{12}$/;
 
 async function jsonBody(c: Context<{ Bindings: Env }>): Promise<Record<string, unknown> | null> {
   try {
@@ -42,11 +42,15 @@ comparisonsRouter.post("/api/comparisons", async (c) => {
 comparisonsRouter.get("/api/comparisons", async (c) => c.json({ comparisons: await listComparisons(c.env.DB) }));
 
 comparisonsRouter.get("/api/comparisons/:id", async (c) => {
-  const id = c.req.param("id");
-  if (!ID.test(id)) return c.json({ error: "not_found" }, 404);
-  const view = await readComparison(c.env.DB, id);
+  const m = /^([a-z0-9]{12})(\.csv)?$/.exec(c.req.param("id"));
+  if (m === null) return c.json({ error: "not_found" }, 404);
+  const view = await readComparison(c.env.DB, m[1]!);
   if (view === null) return c.json({ error: "not_found" }, 404);
   if (!FINISHED.has(view.state)) advanceLater(c.env, c.executionCtx, view.id);
+  if (m[2] === ".csv") {
+    if (view.state !== "ready") return c.json({ error: "not_ready", state: view.state }, 409);
+    return csvResponse(view);
+  }
   return c.json(view);
 });
 

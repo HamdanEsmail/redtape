@@ -170,14 +170,16 @@ export async function readComparison(db: D1Database, id: string): Promise<Compar
   return view;
 }
 
-export async function listComparisons(db: D1Database, limit = 50) {
+/** Ready comparisons still kept, and visitor ones still within their 7 days, newest first. */
+export async function listComparisons(db: D1Database, limit = 50, now: Date = new Date()) {
   const { results } = await db
     .prepare(
       `SELECT id, activity, places_json, demo, created_at, finished_at
-       FROM comparisons WHERE state = 'ready' AND kept = 1
-       ORDER BY demo IS NULL, demo, created_at DESC LIMIT ?`,
+       FROM comparisons
+       WHERE state = 'ready' AND (kept = 1 OR (kept = 0 AND expires_at IS NOT NULL AND expires_at > ?))
+       ORDER BY COALESCE(finished_at, created_at) DESC LIMIT ?`,
     )
-    .bind(limit)
+    .bind(now.toISOString(), limit)
     .all<{ id: string; activity: string; places_json: string; demo: number | null; created_at: string; finished_at: string | null }>();
   return results.map((r) => ({ id: r.id, activity: r.activity, places: JSON.parse(r.places_json) as string[], demo: r.demo, created_at: r.created_at, finished_at: r.finished_at }));
 }

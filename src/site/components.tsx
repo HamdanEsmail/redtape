@@ -479,7 +479,7 @@ export function LawyerQuestions(props: { view: ComparisonView }) {
 
 export type SavedRow = { id: string; activity: string; places: string[]; created_at: string; finished_at: string | null };
 
-export function SavedList(props: { rows: SavedRow[] }) {
+export function SavedList(props: { rows: SavedRow[]; note?: string }) {
   return (
     <section class="saved" id="saved" data-ink="light">
       <h2 class="disp in">Already measured</h2>
@@ -497,6 +497,7 @@ export function SavedList(props: { rows: SavedRow[] }) {
           );
         })}
       </div>
+      {props.note !== undefined ? <p class="keep in">{props.note}</p> : null}
     </section>
   );
 }

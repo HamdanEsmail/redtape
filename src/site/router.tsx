@@ -9,9 +9,14 @@ import { advanceLater } from "../compare/advance";
 import { checkInput, startPublicComparison } from "../compare/create";
 import { listComparisons, readComparison, type ComparisonView } from "../compare/read";
 import type { Env } from "../env";
-import { SECURITY_HEADERS } from "./layout";
+import { readStats } from "../handlers/stats";
+import { csvResponse } from "./csv-response";
+import { downloadName } from "./exports";
+import { PageContext, SECURITY_HEADERS } from "./layout";
 import { Home, type HomeForm } from "./views/home";
 import { ComparisonPage, NotFoundPage } from "./views/comparison";
+import { BriefPage } from "./views/brief";
+import { AboutPage, ApiPage, HowPage, SavedPage } from "./views/pages";
 
 type AppContext = Context<{ Bindings: Env }>;
 
@@ -28,15 +33,23 @@ function field(v: unknown): string {
 /** The API, the hooks and the assets are never a page. */
 const notAPage = (path: string): boolean => /^\/(?:api|hooks|assets)(?:\/|$)/.test(path);
 
+const baseOf = (env: Env) => env.PUBLIC_BASE_URL.replace(/\/+$/, "");
+
 function render(c: AppContext, page: Child, status: ContentfulStatusCode = 200) {
-  return c.html(page as unknown as string, status, { ...SECURITY_HEADERS, "cache-control": "no-store" });
+  const tree = (
+    <PageContext.Provider value={{ base: baseOf(c.env), path: c.req.path }}>{page}</PageContext.Provider>
+  );
+  return c.html(tree as unknown as string, status, { ...SECURITY_HEADERS, "cache-control": "no-store" });
 }
+
+/** An unknown comparison path keeps "No comparison here."; any other unknown page path does not. */
+const missingComparison = (path: string): boolean => /^\/comparisons\//.test(path);
 
 /** The Worker's 404: the site's page for a page path while the site is on, else the JSON 404. */
 export async function notFound(c: AppContext) {
   if (siteEnabled(c.env) && !notAPage(c.req.path)) {
     const id = await featuredId(c.env.DB);
-    return render(c, <NotFoundPage featuredId={id} />, 404);
+    return render(c, <NotFoundPage featuredId={id} comparison={missingComparison(c.req.path)} />, 404);
   }
   return c.json({ error: "not_found" }, 404);
 }
@@ -86,12 +99,52 @@ siteRouter.post("/comparisons", async (c) => {
   return c.redirect(`/comparisons/${started.id}`, 303);
 });
 
-siteRouter.get("/comparisons/:id", async (c) => {
+siteRouter.get("/comparisons/:id/brief", async (c) => {
   if (!siteEnabled(c.env)) return notFound(c);
   const id = c.req.param("id");
   if (!COMPARISON_ID.test(id)) return notFound(c);
   const [view, shown] = await Promise.all([readComparison(c.env.DB, id), featuredId(c.env.DB)]);
-  if (view === null) return render(c, <NotFoundPage featuredId={shown} />, 404);
+  if (view === null) return render(c, <NotFoundPage featuredId={shown} comparison={true} />, 404);
+  return render(c, <BriefPage view={view} featuredId={shown} />);
+});
+
+siteRouter.get("/comparisons", async (c) => {
+  if (!siteEnabled(c.env)) return notFound(c);
+  const [rows, shown] = await Promise.all([listComparisons(c.env.DB), featuredId(c.env.DB)]);
+  return render(c, <SavedPage rows={rows} featuredId={shown} />);
+});
+
+/** A comparison's page, or its export: `/comparisons/:id`, `/comparisons/:id.csv`, `/comparisons/:id.json`. */
+siteRouter.get("/comparisons/:name", async (c) => {
+  if (!siteEnabled(c.env)) return notFound(c);
+  const m = /^([a-z0-9]{12})(?:\.(csv|json))?$/.exec(c.req.param("name"));
+  if (m === null) return notFound(c);
+  const [view, shown] = await Promise.all([readComparison(c.env.DB, m[1]!), featuredId(c.env.DB)]);
+  if (view === null) return render(c, <NotFoundPage featuredId={shown} comparison={true} />, 404);
   if (!FINISHED.has(view.state)) advanceLater(c.env, c.executionCtx, view.id);
+  if (m[2] === "csv" || m[2] === "json") {
+    if (view.state !== "ready") return c.json({ error: "not_ready", state: view.state }, 409);
+    if (m[2] === "csv") return csvResponse(view);
+    return c.json(view, 200, {
+      "content-disposition": `attachment; filename="${downloadName(view.activity, "json")}"`,
+      "cache-control": "no-store",
+    });
+  }
   return render(c, <ComparisonPage view={view} featuredId={shown} />);
+});
+
+siteRouter.get("/how", async (c) =>
+  siteEnabled(c.env) ? render(c, <HowPage featuredId={await featuredId(c.env.DB)} />) : notFound(c),
+);
+
+siteRouter.get("/api", async (c) => {
+  if (!siteEnabled(c.env)) return notFound(c);
+  const [rows, shown] = await Promise.all([listComparisons(c.env.DB, 1), featuredId(c.env.DB)]);
+  return render(c, <ApiPage base={baseOf(c.env)} sampleId={rows[0]?.id ?? null} featuredId={shown} />);
+});
+
+siteRouter.get("/about", async (c) => {
+  if (!siteEnabled(c.env)) return notFound(c);
+  const [stats, shown] = await Promise.all([readStats(c.env.DB), featuredId(c.env.DB)]);
+  return render(c, <AboutPage stats={stats} featuredId={shown} />);
 });

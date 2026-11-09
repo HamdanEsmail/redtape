@@ -80,6 +80,13 @@ function fieldSlot(key: string): "required" | "authority" | "fee" | "timeTo" | "
   return null;
 }
 
+/** "none stated" is the same gap as "not stated": it is stored as "not stated", with what follows kept.
+ *  "none", "free", "no fee" and "0" stay stated values. */
+export function asGap(value: string): string {
+  const m = /^none\s+stated\b/i.exec(value);
+  return m === null ? value : `not stated${value.slice(m[0].length)}`;
+}
+
 function fieldsOf(block: string): Record<string, string> {
   const f: Record<string, string> = {};
   for (const l of block.split("\n")) {
@@ -89,7 +96,8 @@ function fieldsOf(block: string): Record<string, string> {
     if (key === "Field" || /^-+$/.test(key)) continue;
     const slot = fieldSlot(key);
     if (slot === null || f[slot] !== undefined) continue;
-    f[slot] = cleanValue(row[2]!);
+    const value = cleanValue(row[2]!);
+    f[slot] = slot === "quote" || slot === "url" ? value : asGap(value);
   }
   return f;
 }

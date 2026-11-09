@@ -147,3 +147,8 @@ export function savedActivity(activity: string): string {
   if (activity.length === 0) return activity;
   return activity[0]!.toUpperCase() + activity.slice(1);
 }
+
+/** `n` and a word in the singular or plural. */
+export function plural(n: number, one: string, many = `${one}s`): string {
+  return `${n} ${n === 1 ? one : many}`;
+}

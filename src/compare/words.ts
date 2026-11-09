@@ -9,6 +9,20 @@ export const RESEARCH_FAIL = "This comparison did not finish: the research run f
 export const NO_ITEM = "No item returned";
 export const DISCLAIMER = "A starting point to confirm with a lawyer, not legal advice.";
 
+export const RUNNING: Record<string, string> = {
+  queued: "Waiting for the comparison before it to finish.",
+  finding: "Finding the official government sites of each place.",
+  researching: "TinyResearch is reading the official pages. This takes about five to ten minutes.",
+  checking: "Reading every official page again to find each quoted sentence.",
+};
+
+/** The sentence a running or failed comparison shows. Empty when it is ready. */
+export function stateLine(state: string, notice: string | null): string {
+  if (state === "ready") return "";
+  if (state === "failed") return notice ?? RESEARCH_FAIL;
+  return RUNNING[state] ?? RUNNING.queued!;
+}
+
 export function failedNotice(reason: string | null): string {
   if (reason === "layout") return LAYOUT_FAIL;
   if (reason === "timeout") return TIMEOUT_FAIL;

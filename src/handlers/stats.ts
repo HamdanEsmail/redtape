@@ -42,3 +42,5 @@ export async function readStats(db: D1Database, now: Date = new Date()) {
 }
 
 statsRouter.get("/api/stats", async (c) => c.json(await readStats(c.env.DB)));
+
+export type Stats = Awaited<ReturnType<typeof readStats>>;

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { parseReport } from "../src/research/report";
+import { figuresForPlace } from "../src/compare/figures";
+import { asGap, parseReport } from "../src/research/report";
 import { ASKED, CATS, QUOTE, URLS, itemMd, reportMd } from "./helpers/report";
 
 const asked = [...ASKED];
@@ -265,5 +266,47 @@ describe("parseReport", () => {
       asked,
     );
     expect(r).toEqual({ ok: false, reason: "layout" });
+  });
+});
+
+describe('"none stated" is a gap', () => {
+  it("reads a fee and a wait written none stated as not stated, and counts them as gaps", () => {
+    const r = parseReport(
+      reportMd({
+        places: [
+          {
+            name: "Port Aldren",
+            items: [
+              itemMd(1, CATS[0], "Entity", { Fee: "None Stated", "Time to approval": "none stated (see the schedule)" }),
+              itemMd(2, CATS[1], "Licence", { Fee: "none" }),
+              itemMd(3, CATS[2], "Premises", { Fee: "no fee" }),
+              itemMd(4, CATS[3], "Tax"),
+            ],
+          },
+          { name: "Northhaven", items: CATS.map((c, n) => itemMd(n + 1, c, c, { "Official URL": URLS.north })) },
+          { name: "Eastmere", items: CATS.map((c, n) => itemMd(n + 1, c, c, { "Official URL": URLS.east })) },
+        ],
+      }),
+      asked,
+    );
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const [entity, licence, premises] = r.places[0]!.items;
+    expect(entity!.fee).toBe("not stated");
+    expect(entity!.timeTo).toBe("not stated (see the schedule)");
+    expect(licence!.fee).toBe("none");
+    expect(premises!.fee).toBe("no fee");
+    const figs = figuresForPlace(
+      "Port Aldren",
+      r.places[0]!.items.map((i) => ({ required: i.required, fee: i.fee, timeTo: i.timeTo, checkKind: "found" })),
+    );
+    expect(figs.feesNotStated).toBe(1);
+    expect(figs.gaps).toBe(1);
+  });
+
+  it("rewrites only a leading none stated, as words", () => {
+    expect(asGap("None stated here")).toBe("not stated here");
+    expect(asGap("nonestated")).toBe("nonestated");
+    expect(asGap("none")).toBe("none");
   });
 });

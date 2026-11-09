@@ -15,6 +15,7 @@ Question text is the tested wording from `make-query.mjs`. The report reader kee
 - **`POST /admin/import`**, as the spec, not Backed's `/api/admin/import`.
 - **Spend kinds** are research-based (`research`, `research_run`), not TinySet's `dataset` / `dataset_run`.
 - **A FAILED or CANCELLED research run** fails the comparison as `research_failed`, with its own sentence: "This comparison did not finish: the research run failed. Nothing is shown." The spec names only the layout and too-long failures.
+- **"none stated"** is read as the same gap as "not stated" and stored as "not stated", with what follows kept. The spec names only "not stated"; real reports also write "none stated". "none", "free", "no fee" and "0" stay stated fees.
 - **D1 `database_id`** is a placeholder until a real database is created at deploy (Task 6).
 
 ## Pass over Task 2
@@ -40,6 +41,14 @@ The headline's second line is sized from its letter count so the whole question 
 ## Pass over the look (third)
 
 The headline's second line is sized from the width between the margins, never larger than the display size, so a long activity stays on one line on a phone. A ready comparison's first screen holds the verdict (or one line per place), a link to the grid, and the disclaimer. Running and failed pages are unchanged. No TinyFish call was made.
+
+## Task 5: the other screens and the exports
+
+The sheet, saved comparisons, how it works, API, about and not-found sit behind `SITE_ENABLED` in the shell. Saved list is kept ready comparisons and visitor ones still within 7 days, newest first. JSON is the API object; CSV is one row per item, RFC 4180, a formula guard, a UTF-8 byte-order mark, and 409 when the comparison is not ready. Every page has a title, description, canonical URL, Open Graph and Twitter tags, and the favicon. CSS for these screens and for print is only at the end of `site.css`. Local seed adds a second kept comparison, a visitor comparison and spend rows. No TinyFish call was made.
+
+## Pass over the other screens (second)
+
+CSV tests match quoting of a guarded carriage return, the byte-order mark as bytes, and 409 with a running state. Inner-page headings sit at the top left. The sheet puts each place on its own line and prints each address once. API examples use Work Sans and wrap. An unknown comparison and an unknown page have their own sentences. Long official addresses wrap inside the column on a phone. The social image is the first screen at 1200 by 630.
 
 ## Paid TinyFish calls
 
