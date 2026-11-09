@@ -167,14 +167,19 @@ describe("a comparison from queued to ready", () => {
     const body = (await res.json()) as {
       state: string;
       categories: string[];
-      items: { check_result: string; fee: string }[];
+      items: { check_result: string; fee: string; fee_lead: { title: string; url: string } | null }[];
       figures: { place: string; feesSum: string | null }[];
       verdict: { paragraph: string };
+      questions: unknown[];
+      research_minutes: number | null;
     };
     expect(body.state).toBe("ready");
     expect(body.categories).toHaveLength(4);
     expect(body.items.length).toBeGreaterThanOrEqual(12);
-    expect(body.items.some((i) => i.check_result.includes("the sentence is on the page"))).toBe(true);
+    expect(body.items.some((i) => i.check_result.includes("Read again on 9 Nov 2026: the sentence is on the page."))).toBe(true);
+    expect(body.items.every((i) => i.fee_lead === null)).toBe(true);
+    expect(body.questions).toEqual([]);
+    expect(body.research_minutes).toBe(0);
     expect(body.verdict.paragraph).toMatch(/Port Aldren is the easiest/);
   });
 

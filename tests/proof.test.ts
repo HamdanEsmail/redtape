@@ -74,7 +74,7 @@ describe("checkItem", () => {
   it("says the sentence is on the page when the quote is found and no fee is stated", () => {
     expect(checkItem({ quote: "A bakery needs a food licence from the Aldren Licensing Office.", fee: "not stated", url: "https://licensing.aldren.gov.example/bakery" }, { ok: true, text: PAGE }, date)).toEqual({
       kind: "found",
-      text: "Read again on 2026-11-09: the sentence is on the page.",
+      text: "Read again on 9 Nov 2026: the sentence is on the page.",
     });
   });
 
@@ -97,14 +97,14 @@ describe("checkItem", () => {
   it("is not confirmed when the page did not show the sentence", () => {
     expect(checkItem({ quote: "Widgets must be painted blue before they are sold in Port Aldren.", fee: "USD 300", url: "https://x.example" }, { ok: true, text: PAGE }, date)).toEqual({
       kind: "quote_missing",
-      text: "Not confirmed: the page did not show this sentence when read on 2026-11-09.",
+      text: "Not confirmed: the page did not show this sentence when read on 9 Nov 2026.",
     });
   });
 
   it("says the official page could not be read, never that the sentence was missing", () => {
     expect(checkItem({ quote: "A bakery needs a food licence from the Aldren Licensing Office.", fee: "USD 300", url: "https://x.example" }, { ok: false, error: "bot_blocked" }, date)).toEqual({
       kind: "unreadable",
-      text: "The official page could not be read on 2026-11-09.",
+      text: "The official page could not be read on 9 Nov 2026.",
     });
   });
 

@@ -1,7 +1,8 @@
+import { lawyerSheet, type LawyerQuestion } from "../brief/questions";
 import { sourceLabel } from "../core/official";
 import { checkSentence, type CheckKind } from "../check/proof";
 import { figuresForPlace, type PlaceFigures } from "./figures";
-import { allItems, getComparison, placesOf, type ComparisonRow, type ItemRow } from "./store";
+import { allItems, FEE_LEAD_NONE, FEE_LEAD_SEARCHING, getComparison, placesOf, type ComparisonRow, type ItemRow } from "./store";
 import { failedNotice, NO_ITEM } from "./words";
 
 export type ItemView = {
@@ -21,6 +22,7 @@ export type ItemView = {
   check_result: string;
   checked_at: string | null;
   source_label: string | null;
+  fee_lead: { title: string; url: string } | null;
 };
 
 export type ComparisonView = {
@@ -35,6 +37,8 @@ export type ComparisonView = {
   verdict: { paragraph: string; place: string | null; heading: string | null; tradeoffs: { place: string; line: string }[]; cost_warning: string | null };
   unclear: string[];
   sources_count: number | null;
+  research_minutes: number | null;
+  questions: LawyerQuestion[];
 };
 
 function categoriesOf(row: ComparisonRow): string[] {
@@ -43,6 +47,20 @@ function categoriesOf(row: ComparisonRow): string[] {
 
 function verdictOf(row: ComparisonRow): { paragraph: string; tradeoffs: { place: string; line: string }[] } {
   return row.verdict_json === null ? { paragraph: "", tradeoffs: [] } : (JSON.parse(row.verdict_json) as { paragraph: string; tradeoffs: { place: string; line: string }[] });
+}
+
+function feeLeadOf(json: string | null): { title: string; url: string } | null {
+  if (json === null || json === FEE_LEAD_NONE || json === FEE_LEAD_SEARCHING) return null;
+  try {
+    const v: unknown = JSON.parse(json);
+    if (v !== null && typeof v === "object" && "title" in v && "url" in v) {
+      const o = v as { title: unknown; url: unknown };
+      if (typeof o.title === "string" && typeof o.url === "string") return { title: o.title, url: o.url };
+    }
+  } catch {
+    // not a lead object
+  }
+  return null;
 }
 
 function namedPlace(paragraph: string, places: string[]): string | null {
@@ -62,7 +80,7 @@ export async function readComparison(db: D1Database, id: string): Promise<Compar
   const rows = await allItems(db, id);
   const items: ItemView[] = [];
   for (const it of rows) {
-    const date = it.checked_at !== null ? it.checked_at.slice(0, 10) : "";
+    const date = it.checked_at ?? "";
     const kind = (it.check_kind ?? "no_url") as CheckKind;
     items.push({
       place: places[it.place_index] ?? "",
@@ -81,6 +99,7 @@ export async function readComparison(db: D1Database, id: string): Promise<Compar
       check_result: it.check_kind === null ? "" : checkSentence(kind, date),
       checked_at: it.checked_at,
       source_label: it.host === null ? null : sourceLabel(it.host),
+      fee_lead: feeLeadOf(it.fee_lead_json),
     });
   }
   if (s.state === "ready" || s.state === "checking") {
@@ -104,6 +123,7 @@ export async function readComparison(db: D1Database, id: string): Promise<Compar
           check_result: NO_ITEM,
           checked_at: null,
           source_label: null,
+          fee_lead: null,
         });
       }
     }
@@ -121,7 +141,7 @@ export async function readComparison(db: D1Database, id: string): Promise<Compar
   const v = verdictOf(s);
   const place = namedPlace(v.paragraph, places);
   const fig = figures.find((f) => f.place === place);
-  return {
+  const view: ComparisonView = {
     id: s.id,
     activity: s.activity,
     places,
@@ -139,7 +159,11 @@ export async function readComparison(db: D1Database, id: string): Promise<Compar
     },
     unclear: s.unclear_json === null ? [] : (JSON.parse(s.unclear_json) as string[]),
     sources_count: s.sources_count,
+    research_minutes: s.research_minutes,
+    questions: [],
   };
+  view.questions = lawyerSheet(view).questions;
+  return view;
 }
 
 export async function listComparisons(db: D1Database, limit = 50) {

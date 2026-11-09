@@ -1,6 +1,11 @@
-import { CHECK_CLAIM_STALE_MINUTES } from "../core/limits";
+import { CHECK_CLAIM_STALE_MINUTES, FEE_LEADS_PER_COMPARISON } from "../core/limits";
 import type { CheckKind } from "../check/proof";
 import type { ParsedItem } from "../research/report";
+
+/** Stored in fee_lead_json while a search is in flight. */
+export const FEE_LEAD_SEARCHING = "searching";
+/** Stored in fee_lead_json when a search found nothing on the item's host, or failed. */
+export const FEE_LEAD_NONE = "none found";
 
 export type ComparisonState = "queued" | "finding" | "researching" | "checking" | "ready" | "failed";
 
@@ -28,6 +33,7 @@ export type ComparisonRow = {
   verdict_json: string | null;
   unclear_json: string | null;
   figures_json: string | null;
+  research_minutes: number | null;
   created_at: string;
   started_at: string | null;
   finished_at: string | null;
@@ -170,4 +176,68 @@ export async function allItems(db: D1Database, comparisonId: string): Promise<It
     .bind(comparisonId)
     .all<ItemRow>();
   return results;
+}
+
+/**
+ * Claims one item whose fee is not stated and which has an official URL, for a fee-lead search.
+ * Counts in-flight and finished leads toward the cap of 6. A stale in-flight claim can be taken
+ * again. Null when none are left or the cap is reached.
+ */
+export async function claimLeadItem(db: D1Database, comparisonId: string, now: Date): Promise<ItemRow | null> {
+  const staleBefore = new Date(now.getTime() - CHECK_CLAIM_STALE_MINUTES * 60_000).toISOString();
+  const claimedAt = `${now.toISOString()}#${crypto.randomUUID()}`;
+  return db
+    .prepare(
+      `UPDATE items SET fee_lead_json = ?1, claimed_at = ?2
+       WHERE id = (
+         SELECT id FROM items
+         WHERE comparison_id = ?3
+           AND url IS NOT NULL AND url != ''
+           AND lower(trim(fee)) LIKE 'not stated%'
+           AND (fee_lead_json IS NULL OR (fee_lead_json = ?1 AND claimed_at < ?4))
+           AND (
+             SELECT COUNT(*) FROM items
+             WHERE comparison_id = ?3
+               AND fee_lead_json IS NOT NULL
+               AND NOT (fee_lead_json = ?1 AND claimed_at < ?4)
+           ) < ?5
+         ORDER BY place_index, category_n, name
+         LIMIT 1
+       )
+       RETURNING *`,
+    )
+    .bind(FEE_LEAD_SEARCHING, claimedAt, comparisonId, staleBefore, FEE_LEADS_PER_COMPARISON)
+    .first<ItemRow>();
+}
+
+export async function saveFeeLead(db: D1Database, claimed: ItemRow, lead: { title: string; url: string } | null): Promise<boolean> {
+  const value = lead === null ? FEE_LEAD_NONE : JSON.stringify(lead);
+  const r = await db
+    .prepare("UPDATE items SET fee_lead_json = ? WHERE id = ? AND claimed_at = ? AND fee_lead_json = ?")
+    .bind(value, claimed.id, claimed.claimed_at, FEE_LEAD_SEARCHING)
+    .run();
+  return r.meta.changes === 1;
+}
+
+/** Items still waiting for a fee-lead search, or with a search in flight. Zero once 6 are stored. */
+export async function pendingLeads(db: D1Database, comparisonId: string): Promise<number> {
+  const row = await db
+    .prepare(
+      `SELECT CASE
+         WHEN (
+           SELECT COUNT(*) FROM items
+           WHERE comparison_id = ?1 AND fee_lead_json IS NOT NULL AND fee_lead_json != ?2
+         ) >= ?3 THEN 0
+         ELSE (
+           SELECT COUNT(*) FROM items
+           WHERE comparison_id = ?1
+             AND url IS NOT NULL AND url != ''
+             AND lower(trim(fee)) LIKE 'not stated%'
+             AND (fee_lead_json IS NULL OR fee_lead_json = ?2)
+         )
+       END AS n`,
+    )
+    .bind(comparisonId, FEE_LEAD_SEARCHING, FEE_LEADS_PER_COMPARISON)
+    .first<{ n: number }>();
+  return row?.n ?? 0;
 }

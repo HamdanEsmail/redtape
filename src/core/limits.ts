@@ -23,6 +23,10 @@ export const RESEARCH_TIMEOUT_MINUTES = 25;
 export const SITES_PER_PLACE = 6;
 /** Official pages one `advance` call reads at most. */
 export const CHECKS_PER_ADVANCE = 4;
+/** Fee-lead searches kept per comparison, for items whose fee is not stated. */
+export const FEE_LEADS_PER_COMPARISON = 6;
+/** Fee-lead searches one `advance` call runs at most. */
+export const FEE_LEADS_PER_ADVANCE = 4;
 /** An item claimed for checking and not finished in this time can be claimed again. */
 export const CHECK_CLAIM_STALE_MINUTES = 2;
 /** An official page is waited for this long at most. */

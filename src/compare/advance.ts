@@ -5,10 +5,12 @@
 //   finding     -> researching  one TinySearch per place; government hosts kept, at most 6 each.
 //   researching -> checking     the TinyResearch run is started (id stored before the first poll)
 //                               then read once a minute; more than 25 minutes without an end fails.
-//   checking    -> ready        each item's official page is read, at most 4 per call.
+//   checking    -> ready        each item's official page is read, at most 4 per call; then a
+//                               fee-lead search for items whose fee is not stated, at most 6.
 import {
   ADVANCE_BUDGET_MS,
   CHECKS_PER_ADVANCE,
+  FEE_LEADS_PER_ADVANCE,
   READ_ATTEMPTS,
   READ_RETRY_AFTER_SECONDS,
   RESEARCH_BUDGET_USD,
@@ -17,7 +19,9 @@ import {
   SITES_PER_PLACE,
 } from "../core/limits";
 import { isGovernmentDomain } from "../core/official";
+import { researchMinutes } from "../core/dates";
 import { recordSpend } from "../core/spend";
+import { hostOf, pickFeeLead } from "../brief/lead";
 import { passingFailure, readOfficialPage } from "../check/read";
 import { checkItem } from "../check/proof";
 import type { Env } from "../env";
@@ -33,11 +37,14 @@ import { releaseSlot, takeSlot } from "./slot";
 import {
   allItems,
   claimItem,
+  claimLeadItem,
   getComparison,
   itemInserts,
   pendingItems,
+  pendingLeads,
   placesOf,
   readAgainLater,
+  saveFeeLead,
   saveItemCheck,
   type ComparisonRow,
 } from "./store";
@@ -214,9 +221,17 @@ async function pollRun(env: Env, s: ComparisonRow, now: Date, did: string[]): Pr
   }
   const results = await env.DB.batch([
     env.DB.prepare(
-      `UPDATE comparisons SET state = 'checking', dropped_items = ?, sources_count = ?, categories_json = ?, verdict_json = ?, unclear_json = ?
+      `UPDATE comparisons SET state = 'checking', dropped_items = ?, sources_count = ?, categories_json = ?, verdict_json = ?, unclear_json = ?, research_minutes = ?
        WHERE id = ? AND state = 'researching'`,
-    ).bind(parsed.dropped, run.evidence.length, JSON.stringify(parsed.categories), JSON.stringify(parsed.verdict), JSON.stringify(parsed.unclear), s.id),
+    ).bind(
+      parsed.dropped,
+      run.evidence.length,
+      JSON.stringify(parsed.categories),
+      JSON.stringify(parsed.verdict),
+      JSON.stringify(parsed.unclear),
+      researchMinutes(run.createdAt, run.completedAt),
+      s.id,
+    ),
     ...itemInserts(env.DB, s.id, parsed.places),
   ]);
   if (results[0]!.meta.changes !== 1) return;
@@ -253,8 +268,30 @@ async function check(env: Env, s: ComparisonRow, now: Date, startedMs: number, d
   }
 }
 
+async function searchLeads(env: Env, s: ComparisonRow, now: Date, did: string[]): Promise<void> {
+  for (let n = 0; n < FEE_LEADS_PER_ADVANCE; n++) {
+    const item = await claimLeadItem(env.DB, s.id, now);
+    if (item === null) return;
+    const host = item.host ?? (item.url !== null ? hostOf(item.url) : null);
+    if (host === null) {
+      await saveFeeLead(env.DB, item, null);
+      did.push(`lead_none:${item.name}`);
+      continue;
+    }
+    try {
+      const hits = await searchWeb(env, `${item.name} fee schedule site:${host}`);
+      await saveFeeLead(env.DB, item, pickFeeLead(hits, host));
+      did.push(`lead:${item.name}`);
+    } catch {
+      await saveFeeLead(env.DB, item, null);
+      did.push(`lead_none:${item.name}`);
+    }
+  }
+}
+
 async function finishChecking(env: Env, s: ComparisonRow, now: Date, did: string[]): Promise<void> {
   if ((await pendingItems(env.DB, s.id)) > 0) return;
+  if ((await pendingLeads(env.DB, s.id)) > 0) return;
   const items = await allItems(env.DB, s.id);
   const places = placesOf(s);
   const figures = places.map((place, i) =>
@@ -324,7 +361,8 @@ export async function advance(env: Env, comparisonId: string, now: Date = new Da
     s = (await getComparison(env.DB, comparisonId))!;
   }
   if (s.state === "checking") {
-    await check(env, s, now, startedMs, did);
+    if ((await pendingItems(env.DB, s.id)) > 0) await check(env, s, now, startedMs, did);
+    else await searchLeads(env, s, now, did);
     s = (await getComparison(env.DB, comparisonId))!;
     await finishChecking(env, s, now, did);
     s = (await getComparison(env.DB, comparisonId))!;

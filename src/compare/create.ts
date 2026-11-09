@@ -1,3 +1,4 @@
+import { researchMinutes } from "../core/dates";
 import { PUBLIC_COMPARISONS_PER_DAY, PUBLIC_COMPARISONS_PER_VISITOR_PER_DAY, PUBLIC_TTL_DAYS, REUSE_DAYS } from "../core/limits";
 import { ALL, countIfUnder, uncount } from "../db/publicUse";
 import type { Env } from "../env";
@@ -85,8 +86,8 @@ export async function importComparison(env: Env, runId: string, input: Compariso
   await env.DB.batch([
     env.DB.prepare(
       `INSERT INTO comparisons (id, activity, places_json, reuse_key, origin, kept, demo, state, research_run_id, cost_usd, cost_basis,
-         dropped_items, sources_count, categories_json, verdict_json, unclear_json, created_at, started_at)
-       VALUES (?, ?, ?, ?, 'import', ?, ?, 'checking', ?, 0, 'import', ?, ?, ?, ?, ?, ?, ?)`,
+         dropped_items, sources_count, categories_json, verdict_json, unclear_json, research_minutes, created_at, started_at)
+       VALUES (?, ?, ?, ?, 'import', ?, ?, 'checking', ?, 0, 'import', ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind(
       id,
       input.activity,
@@ -100,6 +101,7 @@ export async function importComparison(env: Env, runId: string, input: Compariso
       JSON.stringify(parsed.categories),
       JSON.stringify(parsed.verdict),
       JSON.stringify(parsed.unclear),
+      researchMinutes(run.createdAt, run.completedAt),
       now.toISOString(),
       now.toISOString(),
     ),

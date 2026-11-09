@@ -1,6 +1,6 @@
 # Redtape: build log
 
-What changed from `docs/plans/2026-11-09-redtape.md` while building Tasks 1 and 2, and why. Written 9 November 2026. No TinyFish call was made.
+What changed from `docs/plans/2026-11-09-redtape.md` while building Tasks 1 to 3, and why. Written 9 November 2026. No TinyFish call was made.
 
 ## Task 1: scaffold, schema and TinyFish clients
 
@@ -20,6 +20,10 @@ Question text is the tested wording from `make-query.mjs`. The report reader kee
 ## Pass over Task 2
 
 Place names match when one is a whole-word prefix of the other. Fields are read by the words in the key; a missing fee or wait is stored as "not stated". Amounts compare as numbers. Mixed currency and bare amounts are listed, not added; dirhams are AED and Singapore dollars are SGD. A failed or cancelled research run, a completed run with no report, and a start that will not succeed on retry fail as `research_failed`, not as a timeout. The move to checking and the item rows are one database batch. The quote check is one pass over the quote and the page. Business days and years are read as waits. `POST /api/comparisons` answers 404 while `SITE_ENABLED` is not "1".
+
+## Task 3: the questions for a lawyer
+
+`lawyerSheet` turns a comparison as read into the sheet of spec section 8: unclear rules, one question per gap (exact words, kind order), real items only. Checked days go into words as "9 Nov 2026" (`shownDate`). A fee lead is one TinySearch on the item's own host after the proof check, claimed in one statement, at most 6 per comparison and 4 per `advance`; a miss or a failed search is stored as "none found" and does not fail the comparison. `research_minutes` is the run's duration in whole minutes, stored when moving to checking and on import. `GET /api/comparisons/:id` includes `questions`, each item's `fee_lead`, and `research_minutes`. Schema addition is `migrations/0002_research_minutes.sql` (`research_minutes` on `comparisons`); `fee_lead_json` was already on `items`.
 
 ## Paid TinyFish calls
 
