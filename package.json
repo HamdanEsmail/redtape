@@ -1,0 +1,30 @@
+{
+  "name": "redtape",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Redtape: one activity and three places in, a proved side-by-side comparison of the licences, fees and waits each place asks for, read from official government pages with TinyFish.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "check": "tsc --noEmit && vitest run && wrangler deploy --dry-run",
+    "migrate:local": "wrangler d1 migrations apply redtape --local",
+    "migrate:remote": "wrangler d1 migrations apply redtape --remote"
+  },
+  "dependencies": {
+    "hono": "4.13.16"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-plugin": "1.5.0",
+    "@cloudflare/workers-types": "5.20261103.1",
+    "typescript": "7.0.2",
+    "vitest": "5.1.0",
+    "wrangler": "4.156.2"
+  }
+}

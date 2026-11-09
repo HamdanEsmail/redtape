@@ -1,0 +1,15 @@
+import { RESEARCH_BUDGET_USD, SPEND_STOP_USD } from "../core/limits";
+import { totalSpend } from "../core/spend";
+
+/** Spent so far plus RESEARCH_BUDGET_USD for every paid run not yet booked. */
+export async function committedSpend(db: D1Database): Promise<number> {
+  const open = await db
+    .prepare("SELECT COUNT(*) AS n FROM comparisons WHERE state <> 'queued' AND origin <> 'import' AND cost_basis IS NULL AND started_at IS NOT NULL")
+    .first<{ n: number }>();
+  return (await totalSpend(db)) + (open?.n ?? 0) * RESEARCH_BUDGET_USD;
+}
+
+/** True when one more comparison, at its budget, would take spending past SPEND_STOP_USD. */
+export async function spendStopReached(db: D1Database): Promise<boolean> {
+  return (await committedSpend(db)) + RESEARCH_BUDGET_USD > SPEND_STOP_USD + 1e-9;
+}
