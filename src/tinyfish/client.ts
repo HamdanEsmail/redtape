@@ -79,8 +79,12 @@ export type TinyFishInit = RequestInit & {
  */
 export async function tinyfishFetch(env: Env, url: string, init: TinyFishInit = {}): Promise<Response> {
   const { spend, ...rest } = init;
+  const key = env.TINYFISH_API_KEY;
+  if (!key) {
+    throw new TinyFishError(500, "no_key", "TinyFish HTTP 500 no_key");
+  }
   const headers = new Headers(rest.headers);
-  headers.set("X-API-Key", env.TINYFISH_API_KEY);
+  headers.set("X-API-Key", key);
   headers.set("Content-Type", "application/json");
 
   const res = await fetch(url, { ...rest, headers });

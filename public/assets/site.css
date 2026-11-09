@@ -91,3 +91,33 @@ table,thead,tbody,tr,th,td{display:block}thead th:first-child{display:none}thead
 tbody th{padding:18px 14px 6px}tbody td{padding:10px 14px 16px}tbody td::before{content:attr(data-p);display:block;font-size:var(--small);color:var(--soft);font-weight:600}
 .stats p{margin-left:0;width:100%}.saved .rows{margin-left:0}.close .row,footer .top,footer .legal{display:block}.close .btn{margin-top:28px;display:block;text-align:center}
 .panel .verb{font-size:30vw}}
+/* Screens the look did not cover: a comparison while it runs, a failed one, a cell that opens, a form message, a long activity. */
+.ask .msg{font-size:var(--body);color:var(--rose);max-width:44ch;margin:0 auto 20px;line-height:1.3}
+td details{display:block}
+td summary{list-style:none;cursor:pointer}
+td summary::-webkit-details-marker,td summary::marker{display:none;content:""}
+td summary:focus-visible{outline:3px solid var(--ink);outline-offset:3px}
+td details .more{margin-top:12px;font-size:var(--small);color:var(--soft);line-height:1.45}
+td details .more p{margin-top:8px}
+td details blockquote{font-size:var(--body);margin-top:10px}
+.run .said,.fail .said{font-size:var(--lead);line-height:1.35;max-width:46ch}
+.run .note,.fail .note{margin-top:16px;font-size:var(--body);max-width:46ch}
+.verdict .figs{grid-column:1/13;grid-row:auto;display:grid;grid-template-columns:repeat(3,1fr);gap:24px;margin-top:48px;align-self:start;list-style:none;padding:0;font-size:var(--small)}
+.verdict .cost{grid-column:1/13;margin-top:24px;font-size:var(--lead)}
+.verdict .fx{grid-column:1/13;margin-top:12px;font-size:var(--small);color:var(--rose)}
+.exports{background:var(--paper)}
+.exports a{display:block;padding:0 0 16px}
+.clip{position:absolute;clip:rect(0 0 0 0);width:1px;height:1px;overflow:hidden}
+@media (max-width:860px){
+.verdict .figs{display:block}
+}
+/* The second headline line is sized from its letter count so it stays one line inside the margins. 15 is the look's "to open a cafe?". */
+.hero h1,.hero .under{--n:15;--fit:min(var(--d),calc(var(--d)*15/var(--n)));--lh2:calc(var(--fit)*.86)}
+.hero h1{clip-path:inset(0 0 calc(var(--lh2)*.6667) 0)}
+.hero h1 span.l:last-of-type,.hero .under{font-size:var(--fit)}
+.hero h1 span.l:last-of-type{margin-top:calc((var(--lh) - var(--lh2))*.3333)}
+.hero .under{top:calc(var(--seam) - var(--lh2)*.3333);clip-path:inset(calc(var(--lh2)*.3333) 0 0 0)}
+/* A long list of lawyer questions stays on the right; the paragraph stays under the heading. */
+.law.qs{grid-template-rows:auto auto 1fr}
+.law.qs ol{grid-row:1/4}
+

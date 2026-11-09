@@ -1,7 +1,7 @@
 // The wallet, TinyFetch and the shared client, against invented answers.
 import { env } from "cloudflare:workers";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { TinyFishError } from "../src/tinyfish/client";
+import { TinyFishError, tinyfishFetch } from "../src/tinyfish/client";
 import { fetchPage } from "../src/tinyfish/fetch";
 import { readBalance } from "../src/tinyfish/wallet";
 import { fetchMock } from "./helpers/fetch-mock";
@@ -21,6 +21,16 @@ beforeEach(async () => {
   await env.DB.prepare("DELETE FROM spend").run();
 });
 afterEach(() => fetchMock.reset());
+
+describe("tinyfishFetch", () => {
+  it.each(["", undefined])("throws no_key and does not call or book when the key is %j", async (key) => {
+    const err = await tinyfishFetch({ ...env, TINYFISH_API_KEY: key as string }, WALLET_API).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(TinyFishError);
+    expect(err).toMatchObject({ status: 500, code: "no_key" });
+    expect(fetchMock.calls).toHaveLength(0);
+    expect(await spendRows()).toEqual([]);
+  });
+});
 
 describe("readBalance", () => {
   it("reads the balance string as dollars and books a $0 read", async () => {

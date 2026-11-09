@@ -29,6 +29,14 @@ Place names match when one is a whole-word prefix of the other. Fields are read 
 
 A comparison that started a research run is booked when it ends, including when it fails, so spend is not left open. Finding and each poll are claimed in one statement; a poll is at most once a minute. A start whose claim is old and has no run id fails rather than starting a second paid run; a 429 or 5xx from the start call itself may still be tried again. Two places that start with the same words are refused on input. An item whose sentence was found but whose fee was not is a gap. `ItemView` carries `check_kind`. Fee-lead searches stop when the call's time budget is spent. Schema addition is `migrations/0003_find_and_poll_claims.sql`.
 
+## Task 4: the look, the home and a comparison's page
+
+The site shell, the home and a comparison's page sit behind `SITE_ENABLED`. Switched off, a page path answers the API's JSON 404; the API keeps working. The home is built from the newest kept ready comparison, with the approved look's classes and the display rules used on stored data (short fee, short wait, tape from each item's check, unclear lines). The form posts to `POST /comparisons` and goes to the new page, or shows the limit or input sentence with the typed values kept. A comparison's page covers running (plain state, a refresh every 5 seconds), ready (cells as `details`, including gaps), and failed. An unknown id is a 404 in the shell. CSS for screens the look did not cover is only at the end of `site.css`. Local seed comparisons are invented. No TinyFish call was made.
+
+## Pass over the look (second)
+
+The headline's second line is sized from its letter count so the whole question stays on one line; the look's "to open a cafe?" keeps the display size, and the seam still cuts the letters. A comparison's running or failed state sits in the red half of the first screen, under the places. A long list of lawyer questions no longer pushes its paragraph off the heading. With no TinyFish key, the client throws `no_key` and makes no request. Seed ids and the page route are 12 characters. Saved rows show the activity with a capital first letter.
+
 ## Paid TinyFish calls
 
 None. Tests intercept every outbound request. There is no `.dev.vars` in this project.
