@@ -1,9 +1,9 @@
 import { env } from "cloudflare:workers";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { pickFeeLead } from "../src/brief/lead";
 import { advance } from "../src/compare/advance";
 import { startAdminComparison } from "../src/compare/create";
-import { FEE_LEADS_PER_COMPARISON } from "../src/core/limits";
+import { ADVANCE_BUDGET_MS, FEE_LEADS_PER_COMPARISON } from "../src/core/limits";
 import { callWorker } from "./helpers/app";
 import { fetchMock } from "./helpers/fetch-mock";
 import { ASKED, CATS, itemMd, QUOTE, reportMd, URLS } from "./helpers/report";
@@ -36,6 +36,8 @@ type Fake = {
   leadByQuery: (q: string) => LeadHit[];
   searchFail: boolean;
   feeScheduleQueries: string[];
+  advanceClockMs: number;
+  nowOffset: number;
 };
 
 function fakeTinyFish(over: Partial<Fake> = {}): Fake {
@@ -49,6 +51,8 @@ function fakeTinyFish(over: Partial<Fake> = {}): Fake {
     leadByQuery: (q) => (q.includes("fee schedule") ? tf.leadHits : []),
     searchFail: false,
     feeScheduleQueries: [],
+    advanceClockMs: 0,
+    nowOffset: 0,
     ...over,
   };
   fetchMock.intercept({
@@ -86,6 +90,7 @@ function fakeTinyFish(over: Partial<Fake> = {}): Fake {
       const q = new URL(req.url).searchParams.get("query") ?? "";
       if (q.includes("fee schedule")) {
         tf.feeScheduleQueries.push(q);
+        tf.nowOffset += tf.advanceClockMs;
         if (tf.searchFail) return Response.json({ error: { code: "BUSY" } }, { status: 503 });
         return Response.json({ results: tf.leadByQuery(q).map((h) => ({ ...h, snippet: "" })) });
       }
@@ -310,6 +315,32 @@ describe("fee leads in advance", () => {
     expect(tf.feeScheduleQueries).toHaveLength(2);
     const searched = await env.DB.prepare("SELECT COUNT(*) AS n FROM items WHERE comparison_id = ? AND fee_lead_json IS NOT NULL").bind(id).first<{ n: number }>();
     expect(searched?.n).toBe(2);
+  });
+
+  it("starts no further fee-lead search after the call's time budget is spent", async () => {
+    tf.report = gapReport(4);
+    tf.leadHits = [{ url: "https://licensing.aldren.gov.example/fees", title: "Aldren fee schedule" }];
+    const id = await newComparison();
+    expect((await advance(env, id, at(0))).state).toBe("finding");
+    expect((await advance(env, id, at(1))).state).toBe("researching");
+    tf.status = "COMPLETED";
+    let state = (await advance(env, id, at(60))).state;
+    while (state === "checking") {
+      const pending = await env.DB.prepare("SELECT COUNT(*) AS n FROM items WHERE comparison_id = ? AND check_state IN ('unchecked', 'checking')")
+        .bind(id)
+        .first<{ n: number }>();
+      if ((pending?.n ?? 0) === 0) break;
+      state = (await advance(env, id, at(61))).state;
+    }
+    expect(tf.feeScheduleQueries).toHaveLength(0);
+    tf.advanceClockMs = ADVANCE_BUDGET_MS;
+    const spy = vi.spyOn(Date, "now").mockImplementation(() => 1_700_000_000_000 + tf.nowOffset);
+    try {
+      await advance(env, id, at(70));
+    } finally {
+      spy.mockRestore();
+    }
+    expect(tf.feeScheduleQueries).toHaveLength(1);
   });
 });
 

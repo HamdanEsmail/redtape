@@ -2,18 +2,23 @@
 // called and is safe to call twice at once: every step claims its work in one statement first.
 //
 //   queued      -> finding      the run slot is free and this is the oldest queued comparison.
-//   finding     -> researching  one TinySearch per place; government hosts kept, at most 6 each.
+//   finding     -> researching  one TinySearch per place, claimed first; government hosts kept,
+//                               at most 6 each.
 //   researching -> checking     the TinyResearch run is started (id stored before the first poll)
-//                               then read once a minute; more than 25 minutes without an end fails.
+//                               then read once a minute (each poll claimed); more than 25 minutes
+//                               without an end fails. A comparison that started a run is booked
+//                               when it ends, including when it fails.
 //   checking    -> ready        each item's official page is read, at most 4 per call; then a
 //                               fee-lead search for items whose fee is not stated, at most 6.
 import {
   ADVANCE_BUDGET_MS,
   CHECKS_PER_ADVANCE,
   FEE_LEADS_PER_ADVANCE,
+  FIND_CLAIM_STALE_MINUTES,
   READ_ATTEMPTS,
   READ_RETRY_AFTER_SECONDS,
   RESEARCH_BUDGET_USD,
+  RESEARCH_POLL_EVERY_SECONDS,
   RESEARCH_TIMEOUT_MINUTES,
   SETTLE_AFTER_MINUTES,
   SITES_PER_PLACE,
@@ -65,7 +70,10 @@ async function fail(env: Env, s: ComparisonRow, from: string, reason: string, no
     .bind(reason, now.toISOString(), s.id, from)
     .run();
   await releaseSlot(env.DB, s.id);
-  return r.meta.changes === 1;
+  if (r.meta.changes !== 1) return false;
+  // A comparison that started a research run is booked when it ends, including when it fails.
+  if (s.research_run_id !== null && s.origin !== "import") await bookRun(env, s, now);
+  return true;
 }
 
 async function start(env: Env, s: ComparisonRow, now: Date, did: string[]): Promise<void> {
@@ -91,33 +99,39 @@ async function start(env: Env, s: ComparisonRow, now: Date, did: string[]): Prom
 }
 
 async function find(env: Env, s: ComparisonRow, now: Date, did: string[]): Promise<void> {
+  const staleBefore = new Date(now.getTime() - FIND_CLAIM_STALE_MINUTES * 60_000).toISOString();
+  const claimed = await env.DB.prepare(
+    `UPDATE comparisons SET finding_claimed_at = ? WHERE id = ? AND state = 'finding'
+       AND (finding_claimed_at IS NULL OR finding_claimed_at < ?)`,
+  )
+    .bind(now.toISOString(), s.id, staleBefore)
+    .run();
+  if (claimed.meta.changes !== 1) return;
+
   const places = placesOf(s);
-  const existing = await env.DB.prepare("SELECT COUNT(*) AS n FROM place_sites WHERE comparison_id = ?").bind(s.id).first<{ n: number }>();
-  if ((existing?.n ?? 0) === 0) {
-    const statements: D1PreparedStatement[] = [];
-    for (let i = 0; i < places.length; i++) {
-      const hits = await searchWeb(env, `${places[i]} official government business licence ${s.activity}`);
-      const hosts: string[] = [];
-      for (const h of hits) {
-        let host: string;
-        try {
-          host = new URL(h.url).hostname.replace(/^www\./, "");
-        } catch {
-          continue;
-        }
-        if (!isGovernmentDomain(host) || hosts.includes(host)) continue;
-        hosts.push(host);
-        if (hosts.length >= SITES_PER_PLACE) break;
+  const statements: D1PreparedStatement[] = [];
+  for (let i = 0; i < places.length; i++) {
+    const hits = await searchWeb(env, `${places[i]} official government business licence ${s.activity}`);
+    const hosts: string[] = [];
+    for (const h of hits) {
+      let host: string;
+      try {
+        host = new URL(h.url).hostname.replace(/^www\./, "");
+      } catch {
+        continue;
       }
-      for (const host of hosts) {
-        statements.push(
-          env.DB.prepare("INSERT OR IGNORE INTO place_sites (comparison_id, place_index, host) VALUES (?, ?, ?)").bind(s.id, i, host),
-        );
-      }
+      if (!isGovernmentDomain(host) || hosts.includes(host)) continue;
+      hosts.push(host);
+      if (hosts.length >= SITES_PER_PLACE) break;
     }
-    if (statements.length > 0) await env.DB.batch(statements);
-    did.push("searched");
+    for (const host of hosts) {
+      statements.push(
+        env.DB.prepare("INSERT OR IGNORE INTO place_sites (comparison_id, place_index, host) VALUES (?, ?, ?)").bind(s.id, i, host),
+      );
+    }
   }
+  if (statements.length > 0) await env.DB.batch(statements);
+  did.push("searched");
   const moved = await env.DB.prepare("UPDATE comparisons SET state = 'researching' WHERE id = ? AND state = 'finding'").bind(s.id).run();
   if (moved.meta.changes === 1) did.push("researching");
 }
@@ -148,19 +162,27 @@ async function bookRun(env: Env, s: ComparisonRow, now: Date): Promise<void> {
     cost = RESEARCH_BUDGET_USD;
     basis = "card";
   }
-  await recordSpend(env.DB, "research_run", cost, s.id);
-  await env.DB.prepare("UPDATE comparisons SET wallet_after_usd = ?, cost_usd = ?, cost_basis = ?, run_booked_at = ? WHERE id = ?")
+  const booked = await env.DB.prepare(
+    "UPDATE comparisons SET wallet_after_usd = ?, cost_usd = ?, cost_basis = ?, run_booked_at = ? WHERE id = ? AND cost_basis IS NULL",
+  )
     .bind(after, cost, basis, now.toISOString(), s.id)
     .run();
+  if (booked.meta.changes === 1) await recordSpend(env.DB, "research_run", cost, s.id);
   await releaseSlot(env.DB, s.id);
 }
 
 async function startRun(env: Env, s: ComparisonRow, now: Date, did: string[]): Promise<void> {
+  // A start whose claim is older than the limit and has no run id is not tried again: it may
+  // already have reached TinyFish. A 429 or 5xx from the start call itself still clears the claim.
+  if (s.research_started_at !== null && minutesAgo(now, s.research_started_at) > LOST_START_MINUTES) {
+    if (await fail(env, s, "researching", "research_failed", now)) did.push("failed:research_failed");
+    return;
+  }
   const claimed = await env.DB.prepare(
     `UPDATE comparisons SET research_started_at = ? WHERE id = ? AND state = 'researching' AND research_run_id IS NULL
-       AND (research_started_at IS NULL OR research_started_at < ?)`,
+       AND research_started_at IS NULL`,
   )
-    .bind(now.toISOString(), s.id, new Date(now.getTime() - LOST_START_MINUTES * 60_000).toISOString())
+    .bind(now.toISOString(), s.id)
     .run();
   if (claimed.meta.changes !== 1) return;
 
@@ -200,6 +222,14 @@ async function pollRun(env: Env, s: ComparisonRow, now: Date, did: string[]): Pr
     if (await fail(env, s, "researching", "timeout", now)) did.push("failed:timeout");
     return;
   }
+  const due = new Date(now.getTime() - RESEARCH_POLL_EVERY_SECONDS * 1000).toISOString();
+  const claimed = await env.DB.prepare(
+    `UPDATE comparisons SET research_polled_at = ? WHERE id = ? AND state = 'researching'
+       AND (research_polled_at IS NULL OR research_polled_at <= ?)`,
+  )
+    .bind(now.toISOString(), s.id, due)
+    .run();
+  if (claimed.meta.changes !== 1) return;
   let run;
   try {
     run = await getResearch(env, s.research_run_id);
@@ -268,8 +298,9 @@ async function check(env: Env, s: ComparisonRow, now: Date, startedMs: number, d
   }
 }
 
-async function searchLeads(env: Env, s: ComparisonRow, now: Date, did: string[]): Promise<void> {
+async function searchLeads(env: Env, s: ComparisonRow, now: Date, startedMs: number, did: string[]): Promise<void> {
   for (let n = 0; n < FEE_LEADS_PER_ADVANCE; n++) {
+    if (Date.now() - startedMs >= ADVANCE_BUDGET_MS) return;
     const item = await claimLeadItem(env.DB, s.id, now);
     if (item === null) return;
     const host = item.host ?? (item.url !== null ? hostOf(item.url) : null);
@@ -362,7 +393,7 @@ export async function advance(env: Env, comparisonId: string, now: Date = new Da
   }
   if (s.state === "checking") {
     if ((await pendingItems(env.DB, s.id)) > 0) await check(env, s, now, startedMs, did);
-    else await searchLeads(env, s, now, did);
+    else await searchLeads(env, s, now, startedMs, did);
     s = (await getComparison(env.DB, comparisonId))!;
     await finishChecking(env, s, now, did);
     s = (await getComparison(env.DB, comparisonId))!;

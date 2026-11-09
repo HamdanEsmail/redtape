@@ -21,6 +21,8 @@ export type ComparisonRow = {
   failed_reason: string | null;
   research_run_id: string | null;
   research_started_at: string | null;
+  finding_claimed_at: string | null;
+  research_polled_at: string | null;
   wallet_before_usd: number | null;
   wallet_after_usd: number | null;
   cost_usd: number | null;

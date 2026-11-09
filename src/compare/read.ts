@@ -20,6 +20,8 @@ export type ItemView = {
   url: string | null;
   quote: string;
   check_result: string;
+  /** The stored check kind, or null before the item is checked. */
+  check_kind: CheckKind | null;
   checked_at: string | null;
   source_label: string | null;
   fee_lead: { title: string; url: string } | null;
@@ -97,6 +99,7 @@ export async function readComparison(db: D1Database, id: string): Promise<Compar
       url: it.url,
       quote: it.quote,
       check_result: it.check_kind === null ? "" : checkSentence(kind, date),
+      check_kind: it.check_kind,
       checked_at: it.checked_at,
       source_label: it.host === null ? null : sourceLabel(it.host),
       fee_lead: feeLeadOf(it.fee_lead_json),
@@ -121,6 +124,7 @@ export async function readComparison(db: D1Database, id: string): Promise<Compar
           url: null,
           quote: "",
           check_result: NO_ITEM,
+          check_kind: null,
           checked_at: null,
           source_label: null,
           fee_lead: null,

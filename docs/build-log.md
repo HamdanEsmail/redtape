@@ -25,6 +25,10 @@ Place names match when one is a whole-word prefix of the other. Fields are read 
 
 `lawyerSheet` turns a comparison as read into the sheet of spec section 8: unclear rules, one question per gap (exact words, kind order), real items only. Checked days go into words as "9 Nov 2026" (`shownDate`). A fee lead is one TinySearch on the item's own host after the proof check, claimed in one statement, at most 6 per comparison and 4 per `advance`; a miss or a failed search is stored as "none found" and does not fail the comparison. `research_minutes` is the run's duration in whole minutes, stored when moving to checking and on import. `GET /api/comparisons/:id` includes `questions`, each item's `fee_lead`, and `research_minutes`. Schema addition is `migrations/0002_research_minutes.sql` (`research_minutes` on `comparisons`); `fee_lead_json` was already on `items`.
 
+## Pass over the engine (third)
+
+A comparison that started a research run is booked when it ends, including when it fails, so spend is not left open. Finding and each poll are claimed in one statement; a poll is at most once a minute. A start whose claim is old and has no run id fails rather than starting a second paid run; a 429 or 5xx from the start call itself may still be tried again. Two places that start with the same words are refused on input. An item whose sentence was found but whose fee was not is a gap. `ItemView` carries `check_kind`. Fee-lead searches stop when the call's time budget is spent. Schema addition is `migrations/0003_find_and_poll_claims.sql`.
+
 ## Paid TinyFish calls
 
 None. Tests intercept every outbound request. There is no `.dev.vars` in this project.

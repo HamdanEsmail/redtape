@@ -1,4 +1,5 @@
 import { ACTIVITY_MAX_CHARS, PLACE_COUNT, PLACE_MAX_CHARS } from "../core/limits";
+import { alike, firstWords } from "../research/report";
 
 export type ComparisonInput = { activity: string; places: string[] };
 
@@ -28,6 +29,19 @@ export function checkInput(body: Record<string, unknown>): { ok: true; input: Co
   const places = body.places.map(oneLine);
   if (places.some((p) => p.length < 1 || p.length > PLACE_MAX_CHARS)) {
     return { ok: false, field: "places", message: `Each place must be 1 to ${PLACE_MAX_CHARS} characters.` };
+  }
+  // Two places that start with the same words are refused, the same rule as the report reader.
+  const keys = places.map(firstWords);
+  for (let i = 0; i < keys.length; i++) {
+    for (let j = i + 1; j < keys.length; j++) {
+      if (alike(keys[i]!, keys[j]!)) {
+        return {
+          ok: false,
+          field: "places",
+          message: "Two places start with the same words. Write each one so it starts differently.",
+        };
+      }
+    }
   }
   return { ok: true, input: { activity, places } };
 }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { lawyerSheet } from "../src/brief/questions";
+import type { CheckKind } from "../src/check/proof";
 import type { ComparisonView, ItemView } from "../src/compare/read";
 import { NO_ITEM } from "../src/compare/words";
 
@@ -11,8 +12,17 @@ const FEE_NOT_ON_PAGE = "The sentence is on the page; the fee is not. Confirm th
 const UNREADABLE = `The official page could not be read on ${SHOWN}.`;
 const NO_URL = "No official page was given for this item.";
 
+function checkKindOf(result: string): CheckKind | null {
+  if (result.startsWith("Read again on")) return "found";
+  if (result.startsWith("Not confirmed:")) return "quote_missing";
+  if (result.startsWith("The sentence is on the page; the fee is not.")) return "found_fee_missing";
+  if (result.startsWith("The official page could not be read")) return "unreadable";
+  if (result === NO_URL) return "no_url";
+  return null;
+}
+
 function item(over: Partial<ItemView> & Pick<ItemView, "name" | "place" | "place_index" | "category">): ItemView {
-  return {
+  const merged: ItemView = {
     category_n: 1,
     required: "yes",
     authority: "Aldren Licensing Office",
@@ -23,11 +33,14 @@ function item(over: Partial<ItemView> & Pick<ItemView, "name" | "place" | "place
     url: "https://licensing.aldren.gov.example/bakery",
     quote: "A bakery needs a food licence from the Aldren Licensing Office.",
     check_result: FOUND,
+    check_kind: "found",
     checked_at: CHECKED,
     source_label: "government domain",
     fee_lead: null,
     ...over,
   };
+  if (over.check_kind === undefined) merged.check_kind = checkKindOf(merged.check_result);
+  return merged;
 }
 
 function view(items: ItemView[], over: Partial<ComparisonView> = {}): ComparisonView {

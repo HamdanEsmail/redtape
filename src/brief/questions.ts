@@ -48,10 +48,10 @@ function kindsOf(item: ItemView): QuestionKind[] {
   const has: Record<QuestionKind, boolean> = {
     fee_not_stated: isGap(item.fee),
     time_not_stated: isGap(item.time),
-    quote_missing: item.check_result.startsWith("Not confirmed:"),
-    fee_not_on_page: item.check_result.startsWith("The sentence is on the page; the fee is not."),
-    unreadable: item.check_result.startsWith("The official page could not be read"),
-    no_url: item.check_result === "No official page was given for this item.",
+    quote_missing: item.check_kind === "quote_missing",
+    fee_not_on_page: item.check_kind === "found_fee_missing",
+    unreadable: item.check_kind === "unreadable",
+    no_url: item.check_kind === "no_url",
   };
   return KINDS.filter((k) => has[k]);
 }

@@ -73,8 +73,9 @@ export function waitDays(text: string): number | null {
   return null;
 }
 
+/** Confirmed only when the sentence is on the page and the fee's amount is too, when a fee is stated. */
 function confirmed(kind: string): boolean {
-  return kind === "found" || kind === "found_fee_missing";
+  return kind === "found";
 }
 
 export function figuresForPlace(place: string, items: FigureItem[]): PlaceFigures {

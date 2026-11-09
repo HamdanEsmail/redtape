@@ -48,7 +48,7 @@ export function firstWords(name: string): string {
 }
 
 /** True when one name equals the other or is a whole-word prefix of it. */
-function alike(a: string, b: string): boolean {
+export function alike(a: string, b: string): boolean {
   return a === b || a.startsWith(`${b} `) || b.startsWith(`${a} `);
 }
 

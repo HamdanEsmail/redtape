@@ -86,4 +86,9 @@ describe("figuresForPlace", () => {
     ]);
     expect(f.costWarning).toBe("Eastmere cannot be judged on cost: 3 of 4 fees are not stated on official pages.");
   });
+
+  it("counts a found sentence whose fee amount is missing as a gap, not as confirmed", () => {
+    const f = figuresForPlace("Port Aldren", [item({ fee: "USD 300", timeTo: "10 days", checkKind: "found_fee_missing" })]);
+    expect(f.gaps).toBe(1);
+  });
 });

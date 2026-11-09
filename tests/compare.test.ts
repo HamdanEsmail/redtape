@@ -2,14 +2,15 @@
 // Every place, authority and page is invented.
 import { env } from "cloudflare:workers";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { recordSpend } from "../src/core/spend";
+import { recordSpend, totalSpend } from "../src/core/spend";
 import { advance } from "../src/compare/advance";
 import { startAdminComparison } from "../src/compare/create";
+import { committedSpend } from "../src/compare/money";
 import { readSlot } from "../src/compare/slot";
 import { failedNotice } from "../src/compare/words";
 import { callWorker } from "./helpers/app";
 import { fetchMock } from "./helpers/fetch-mock";
-import { ASKED, QUOTE, URLS, reportMd } from "./helpers/report";
+import { ASKED, CATS, itemMd, QUOTE, URLS, reportMd } from "./helpers/report";
 
 const T0 = new Date("2026-11-09T10:00:00.000Z");
 const at = (seconds: number) => new Date(T0.getTime() + seconds * 1000);
@@ -31,12 +32,23 @@ type Fake = {
   status: string;
   report: string;
   starts: number;
+  polls: number;
+  placeSearches: number;
   pages: Record<string, string>;
   startStatus: number;
 };
 
 function fakeTinyFish(over: Partial<Fake> = {}): Fake {
-  const tf: Fake = { status: "COMPLETED", report: reportMd({}), starts: 0, pages: { ...PAGES }, startStatus: 200, ...over };
+  const tf: Fake = {
+    status: "COMPLETED",
+    report: reportMd({}),
+    starts: 0,
+    polls: 0,
+    placeSearches: 0,
+    pages: { ...PAGES },
+    startStatus: 200,
+    ...over,
+  };
   fetchMock.intercept({
     method: "GET",
     url: WALLET,
@@ -58,8 +70,9 @@ function fakeTinyFish(over: Partial<Fake> = {}): Fake {
   fetchMock.intercept({
     method: "GET",
     url: new RegExp("^https://agent\\.tinyfish\\.ai/v1/research-run/"),
-    reply: () =>
-      Response.json({
+    reply: () => {
+      tf.polls += 1;
+      return Response.json({
         research_run_id: RUN_ID,
         status: tf.status,
         query: "q",
@@ -68,7 +81,8 @@ function fakeTinyFish(over: Partial<Fake> = {}): Fake {
         created_at: T0.toISOString(),
         completed_at: tf.status === "COMPLETED" ? T0.toISOString() : null,
         error: null,
-      }),
+      });
+    },
     times: Infinity,
   });
   fetchMock.intercept({
@@ -76,6 +90,7 @@ function fakeTinyFish(over: Partial<Fake> = {}): Fake {
     url: new RegExp("^https://api\\.search\\.tinyfish\\.ai"),
     reply: (req) => {
       const q = new URL(req.url).searchParams.get("query") ?? "";
+      if (q.includes("official government business licence")) tf.placeSearches += 1;
       const results: { url: string; title: string; snippet: string }[] = [];
       if (q.includes("Port Aldren")) results.push({ url: "https://licensing.aldren.gov.example/", title: "Aldren", snippet: "" });
       if (q.includes("Northhaven")) results.push({ url: "https://permits.northhaven.gov.example/", title: "Northhaven", snippet: "" });
@@ -113,6 +128,25 @@ async function newComparison(now = T0): Promise<string> {
   const r = await startAdminComparison(env, { activity: ACTIVITY, places: PLACES }, null, now);
   if (!r.ok) throw new Error(r.error);
   return r.id;
+}
+
+async function toResearching(id: string): Promise<void> {
+  expect((await advance(env, id, at(0))).state).toBe("finding");
+  expect((await advance(env, id, at(1))).state).toBe("researching");
+}
+
+async function researchRunRows(id: string): Promise<number> {
+  const row = await env.DB.prepare("SELECT COUNT(*) AS n FROM spend WHERE kind = 'research_run' AND ref = ?").bind(id).first<{ n: number }>();
+  return row?.n ?? 0;
+}
+
+function missingPlaceReport(): string {
+  return reportMd({
+    places: [
+      { name: "Port Aldren", items: CATS.map((c, n) => itemMd(n + 1, c, c)) },
+      { name: "Northhaven", items: CATS.map((c, n) => itemMd(n + 1, c, c, { "Official URL": URLS.north })) },
+    ],
+  });
 }
 
 async function runThrough(id: string, tf: Fake): Promise<string> {
@@ -185,10 +219,12 @@ describe("a comparison from queued to ready", () => {
 
   it("does the same work once when two advance calls run at the same moment", async () => {
     const id = await newComparison();
+    tf.status = "RUNNING";
     await advance(env, id, at(0));
-    const [a, b] = await Promise.all([advance(env, id, at(1)), advance(env, id, at(1))]);
-    expect([a.state, b.state].sort()).toEqual(["researching", "researching"]);
+    await Promise.all([advance(env, id, at(1)), advance(env, id, at(1))]);
     expect(tf.starts).toBe(1);
+    const row = await env.DB.prepare("SELECT state FROM comparisons WHERE id = ?").bind(id).first<{ state: string }>();
+    expect(row?.state).toBe("researching");
   });
 
   it("fails when the research run never ends", async () => {
@@ -209,10 +245,11 @@ describe("a comparison from queued to ready", () => {
     await advance(env, id, at(0));
     await advance(env, id, at(1));
     tf.status = "COMPLETED";
-    const [a, b] = await Promise.all([advance(env, id, at(60)), advance(env, id, at(60))]);
-    expect(new Set([a.state, b.state])).toEqual(new Set(["checking"]));
-    const row = await env.DB.prepare("SELECT COUNT(*) AS n FROM items WHERE comparison_id = ?").bind(id).first<{ n: number }>();
-    expect(row?.n).toBe(12);
+    await Promise.all([advance(env, id, at(60)), advance(env, id, at(60))]);
+    const row = await env.DB.prepare("SELECT state FROM comparisons WHERE id = ?").bind(id).first<{ state: string }>();
+    expect(row?.state).toBe("checking");
+    const items = await env.DB.prepare("SELECT COUNT(*) AS n FROM items WHERE comparison_id = ?").bind(id).first<{ n: number }>();
+    expect(items?.n).toBe(12);
   });
 });
 
@@ -315,6 +352,30 @@ describe("POST /api/comparisons", () => {
     expect((await post({ activity: ACTIVITY, places: ["Port Aldren", "Northhaven", "x".repeat(81)] })).status).toBe(400);
   });
 
+  it("refuses two places that start with the same words, and does not start a comparison or count it", async () => {
+    const res = await post({ activity: ACTIVITY, places: ["Port Aldren", "Port Aldren Bay", "Eastmere"] });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({
+      error: "invalid",
+      field: "places",
+      message: "Two places start with the same words. Write each one so it starts differently.",
+    });
+    expect((await env.DB.prepare("SELECT COUNT(*) AS n FROM comparisons").first<{ n: number }>())?.n).toBe(0);
+    expect((await env.DB.prepare("SELECT COUNT(*) AS n FROM public_use").first<{ n: number }>())?.n).toBe(0);
+  });
+
+  it("refuses the same place twice, and does not start a comparison or count it", async () => {
+    const res = await post({ activity: ACTIVITY, places: ["Port Aldren", "Northhaven", "Port Aldren"] });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({
+      error: "invalid",
+      field: "places",
+      message: "Two places start with the same words. Write each one so it starts differently.",
+    });
+    expect((await env.DB.prepare("SELECT COUNT(*) AS n FROM comparisons").first<{ n: number }>())?.n).toBe(0);
+    expect((await env.DB.prepare("SELECT COUNT(*) AS n FROM public_use").first<{ n: number }>())?.n).toBe(0);
+  });
+
   it("answers 404 while the site is switched off, and 202 when it is on", async () => {
     const off = await callWorker(
       "/api/comparisons",
@@ -388,5 +449,135 @@ describe("GET /api/stats", () => {
     expect(await res.json()).toMatchObject({
       limits: { spend_stop_usd: 8, public_comparisons_per_day: 2 },
     });
+  });
+});
+
+describe("a paid run whose comparison then fails is booked", () => {
+  async function expectBookedOnce(id: string): Promise<void> {
+    expect(await researchRunRows(id)).toBe(1);
+    const row = await env.DB.prepare("SELECT cost_basis, run_booked_at FROM comparisons WHERE id = ?").bind(id).first<{
+      cost_basis: string | null;
+      run_booked_at: string | null;
+    }>();
+    expect(row?.cost_basis).toMatch(/^(wallet|card|free)$/);
+    expect(row?.run_booked_at).not.toBeNull();
+    expect(await committedSpend(env.DB)).toBe(await totalSpend(env.DB));
+  }
+
+  it("books one ledger row when the run never ends", async () => {
+    const id = await newComparison();
+    tf.status = "RUNNING";
+    await toResearching(id);
+    expect((await advance(env, id, at(26 * 60))).state).toBe("failed");
+    await expectBookedOnce(id);
+  });
+
+  it("books one ledger row when the run ends FAILED", async () => {
+    const id = await newComparison();
+    tf.status = "FAILED";
+    await toResearching(id);
+    expect((await advance(env, id, at(60))).state).toBe("failed");
+    await expectBookedOnce(id);
+  });
+
+  it("books one ledger row when the run ends CANCELLED", async () => {
+    const id = await newComparison();
+    tf.status = "CANCELLED";
+    await toResearching(id);
+    expect((await advance(env, id, at(60))).state).toBe("failed");
+    await expectBookedOnce(id);
+  });
+
+  it("books one ledger row when the run is COMPLETED with no report", async () => {
+    const id = await newComparison();
+    tf.status = "COMPLETED";
+    tf.report = "";
+    await toResearching(id);
+    expect((await advance(env, id, at(60))).state).toBe("failed");
+    await expectBookedOnce(id);
+  });
+
+  it("books one ledger row when the report is not in the agreed layout", async () => {
+    const id = await newComparison();
+    tf.status = "COMPLETED";
+    tf.report = missingPlaceReport();
+    await toResearching(id);
+    expect((await advance(env, id, at(60))).state).toBe("failed");
+    await expectBookedOnce(id);
+  });
+
+  it("books one ledger row when two advance calls fail the same run at once", async () => {
+    const id = await newComparison();
+    tf.status = "RUNNING";
+    await toResearching(id);
+    await Promise.all([advance(env, id, at(26 * 60)), advance(env, id, at(26 * 60))]);
+    const row = await env.DB.prepare("SELECT state FROM comparisons WHERE id = ?").bind(id).first<{ state: string }>();
+    expect(row?.state).toBe("failed");
+    await expectBookedOnce(id);
+  });
+});
+
+describe("finding and polling are claimed", () => {
+  it("makes three place searches, not six, when two advance calls find at once", async () => {
+    const id = await newComparison();
+    tf.status = "RUNNING";
+    await advance(env, id, at(0));
+    await Promise.all([advance(env, id, at(1)), advance(env, id, at(1))]);
+    expect(tf.placeSearches).toBe(3);
+    expect(tf.starts).toBe(1);
+    const row = await env.DB.prepare("SELECT state FROM comparisons WHERE id = ?").bind(id).first<{ state: string }>();
+    expect(row?.state).toBe("researching");
+  });
+
+  it("reads the research run once when two polls fall inside a minute, and again a minute later", async () => {
+    const id = await newComparison();
+    tf.status = "RUNNING";
+    await toResearching(id);
+    expect(tf.polls).toBe(0);
+    const [a, b] = await Promise.all([advance(env, id, at(60)), advance(env, id, at(60))]);
+    expect(a.state).toBe("researching");
+    expect(b.state).toBe("researching");
+    expect(tf.polls).toBe(1);
+    expect((await advance(env, id, at(70))).state).toBe("researching");
+    expect(tf.polls).toBe(1);
+    expect((await advance(env, id, at(120))).state).toBe("researching");
+    expect(tf.polls).toBe(2);
+  });
+});
+
+describe("a start that may have reached TinyFish is not started again", () => {
+  it("fails as research_failed when a start claim is older than the limit and has no run id, and books nothing", async () => {
+    tf.startStatus = 429;
+    const id = await newComparison();
+    await toResearching(id);
+    expect(tf.starts).toBe(1);
+    await env.DB.prepare("UPDATE comparisons SET research_started_at = ? WHERE id = ?").bind(at(-6 * 60).toISOString(), id).run();
+    tf.startStatus = 200;
+    const failed = await advance(env, id, at(2));
+    expect(failed.state).toBe("failed");
+    expect(tf.starts).toBe(1);
+    expect(await researchRunRows(id)).toBe(0);
+    const row = await env.DB.prepare("SELECT cost_basis, research_run_id, failed_reason FROM comparisons WHERE id = ?").bind(id).first<{
+      cost_basis: string | null;
+      research_run_id: string | null;
+      failed_reason: string | null;
+    }>();
+    expect(row).toMatchObject({ cost_basis: "none", research_run_id: null, failed_reason: "research_failed" });
+  });
+
+  it("tries again when the start call itself answers 429", async () => {
+    tf.startStatus = 429;
+    const id = await newComparison();
+    expect((await advance(env, id, at(0))).state).toBe("finding");
+    expect((await advance(env, id, at(1))).state).toBe("researching");
+    expect(tf.starts).toBe(1);
+    tf.startStatus = 200;
+    expect((await advance(env, id, at(2))).state).toBe("researching");
+    expect(tf.starts).toBe(2);
+    const row = await env.DB.prepare("SELECT research_run_id, state FROM comparisons WHERE id = ?").bind(id).first<{
+      research_run_id: string | null;
+      state: string;
+    }>();
+    expect(row).toMatchObject({ research_run_id: RUN_ID, state: "researching" });
   });
 });

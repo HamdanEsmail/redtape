@@ -21,6 +21,10 @@ export const RUN_SLOT_STALE_MINUTES = 35;
 export const RESEARCH_TIMEOUT_MINUTES = 25;
 /** Preferred official hosts kept per place from the finding search. */
 export const SITES_PER_PLACE = 6;
+/** A finding step claimed and not finished in this time can be claimed again. */
+export const FIND_CLAIM_STALE_MINUTES = 5;
+/** The research run is read at most this often. */
+export const RESEARCH_POLL_EVERY_SECONDS = 55;
 /** Official pages one `advance` call reads at most. */
 export const CHECKS_PER_ADVANCE = 4;
 /** Fee-lead searches kept per comparison, for items whose fee is not stated. */
