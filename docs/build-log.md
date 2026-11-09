@@ -1,6 +1,6 @@
 # Redtape: build log
 
-What changed from `docs/plans/2026-11-09-redtape.md` while building Tasks 1 to 3, and why. Written 9 November 2026. No TinyFish call was made.
+What changed from `docs/plans/2026-11-09-redtape.md` while building Tasks 1 to 4, and why. Written 9 November 2026. No TinyFish call was made.
 
 ## Task 1: scaffold, schema and TinyFish clients
 
@@ -14,7 +14,7 @@ Question text is the tested wording from `make-query.mjs`. The report reader kee
 
 - **`POST /admin/import`**, as the spec, not Backed's `/api/admin/import`.
 - **Spend kinds** are research-based (`research`, `research_run`), not TinySet's `dataset` / `dataset_run`.
-- **A FAILED or CANCELLED research run** fails the comparison with the too-long sentence: the spec names no other research-failure words for the page.
+- **A FAILED or CANCELLED research run** fails the comparison as `research_failed`, with its own sentence: "This comparison did not finish: the research run failed. Nothing is shown." The spec names only the layout and too-long failures.
 - **D1 `database_id`** is a placeholder until a real database is created at deploy (Task 6).
 
 ## Pass over Task 2
