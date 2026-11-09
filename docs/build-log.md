@@ -37,6 +37,10 @@ The site shell, the home and a comparison's page sit behind `SITE_ENABLED`. Swit
 
 The headline's second line is sized from its letter count so the whole question stays on one line; the look's "to open a cafe?" keeps the display size, and the seam still cuts the letters. A comparison's running or failed state sits in the red half of the first screen, under the places. A long list of lawyer questions no longer pushes its paragraph off the heading. With no TinyFish key, the client throws `no_key` and makes no request. Seed ids and the page route are 12 characters. Saved rows show the activity with a capital first letter.
 
+## Pass over the look (third)
+
+The headline's second line is sized from the width between the margins, never larger than the display size, so a long activity stays on one line on a phone. A ready comparison's first screen holds the verdict (or one line per place), a link to the grid, and the disclaimer. Running and failed pages are unchanged. No TinyFish call was made.
+
 ## Paid TinyFish calls
 
 None. Tests intercept every outbound request. There is no `.dev.vars` in this project.

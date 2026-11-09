@@ -1,6 +1,6 @@
 // Display rules for stored comparison data, as the approved home writes them.
 
-import { isGap } from "../compare/figures";
+import { isGap, type PlaceFigures } from "../compare/figures";
 import type { ItemView } from "../compare/read";
 import { NO_ITEM } from "../compare/words";
 
@@ -115,13 +115,31 @@ export function toActivity(activity: string | null): string {
   return `to ${activity.replace(/\?+$/, "")}?`;
 }
 
-/** Letter count of the look's second line, "to open a cafe?". A line this long keeps the display size. */
+/** Letter count of the look's second line, "to open a cafe?". */
 export const CAFE_CHARS = 15;
 
-/** Font size of a headline line of `chars` letters, never larger than `display`. */
-export function fitLine(chars: number, display: number): number {
+/** Average width of an Anton capital, in em. */
+const ANTON_EM = 0.45;
+
+/** Font size of a headline line of `chars` letters at a viewport, never larger than `display`. */
+export function fitLine(viewport: number, margin: number, display: number, chars: number): number {
   const n = Math.max(chars, 1);
-  return n <= CAFE_CHARS ? display : (display * CAFE_CHARS) / n;
+  return Math.min(display, (viewport - 2 * margin) / (n * ANTON_EM));
+}
+
+/** The first sentence of a verdict paragraph, as the verdict section shows it. */
+export function firstSentence(paragraph: string): string {
+  const shown = short(paragraph, 330);
+  const cut = shown.search(/[.!?](?:\s|$)/);
+  if (cut < 0) return shown;
+  return shown.slice(0, cut + 1);
+}
+
+/** One place on a ready first screen when there is no verdict. */
+export function placeAskLine(fig: PlaceFigures): string {
+  const fees =
+    fig.feesSum !== null ? fig.feesSum : fig.feesList !== null ? fig.feesList.join("; ") : "no stated fee";
+  return `${shortPlace(fig.place)}: ${fig.feesStated} of ${fig.feesOf} fees stated, ${fees}, longest stated wait: ${waitHead(fig.longestWait)}.`;
 }
 
 /** The activity as a saved row writes it: first letter upper-case. */

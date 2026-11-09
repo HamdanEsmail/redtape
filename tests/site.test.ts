@@ -46,6 +46,15 @@ function firstScreen(html: string): string {
   return next < 0 ? rest : rest.slice(0, next);
 }
 
+const DEFAULT_VERDICT = {
+  paragraph: "Port Aldren is the easiest place to start: fees are published and the wait is short.",
+  tradeoffs: [
+    { place: "Port Aldren", line: "published fees and a short wait" },
+    { place: "Northhaven", line: "a longer wait and more filings" },
+    { place: "Eastmere", line: "mixed currencies on the same forms" },
+  ],
+};
+
 async function insertComparison(over: {
   id: string;
   activity?: string;
@@ -54,9 +63,11 @@ async function insertComparison(over: {
   failed_reason?: string | null;
   sources_count?: number | null;
   research_minutes?: number | null;
+  verdict?: { paragraph: string; tradeoffs: { place: string; line: string }[] } | null;
 }): Promise<void> {
   const ready = over.state === "ready";
   const checking = over.state === "checking" || ready;
+  const verdict = over.verdict !== undefined ? over.verdict : ready ? DEFAULT_VERDICT : null;
   await env.DB.prepare(
     `INSERT INTO comparisons (
        id, activity, places_json, reuse_key, origin, kept, state, failed_reason, dropped_items,
@@ -74,16 +85,7 @@ async function insertComparison(over: {
       over.failed_reason ?? null,
       over.sources_count ?? (ready ? 12 : null),
       checking ? JSON.stringify([...CATS]) : null,
-      ready
-        ? JSON.stringify({
-            paragraph: "Port Aldren is the easiest place to start: fees are published and the wait is short.",
-            tradeoffs: [
-              { place: "Port Aldren", line: "published fees and a short wait" },
-              { place: "Northhaven", line: "a longer wait and more filings" },
-              { place: "Eastmere", line: "mixed currencies on the same forms" },
-            ],
-          })
-        : null,
+      verdict === null ? null : JSON.stringify(verdict),
       ready
         ? JSON.stringify([
             "Port Aldren - The premises stamp fee is not on the licensing page.",
@@ -152,8 +154,11 @@ async function insertItem(over: {
 }
 
 /** A kept ready comparison with a gap, a missing cell, mixed fees and a javascript: address. */
-async function readyComparison(id = "readygaps001"): Promise<string> {
-  await insertComparison({ id, kept: 1, state: "ready" });
+async function readyComparison(
+  id = "readygaps001",
+  over?: { verdict?: { paragraph: string; tradeoffs: { place: string; line: string }[] } | null },
+): Promise<string> {
+  await insertComparison({ id, kept: 1, state: "ready", ...over });
   await insertItem({
     comparison_id: id,
     place_index: 0,
@@ -233,16 +238,22 @@ const formPost = (fields: Record<string, string>, ip = "203.0.113.5") =>
   });
 
 describe("the headline's second line", () => {
-  it("keeps the look's size at 15 letters and shrinks at 30, 60 and 200", () => {
+  it("keeps the look's size for 15 letters on a desktop and fits 12, 22 and 200 letters at 390 and 1440", () => {
     expect("to open a cafe?".length).toBe(CAFE_CHARS);
-    expect(fitLine(15, 100)).toBe(100);
-    expect(fitLine(30, 100)).toBe(50);
-    expect(fitLine(60, 100)).toBe(25);
-    expect(fitLine(200, 100)).toBe(7.5);
-    expect(fitLine(15, 158.4)).toBe(158.4);
-    expect(fitLine(15, 58.5)).toBe(58.5);
-    expect(fitLine(30, 158.4)).toBe(79.2);
-    expect(fitLine(200, 58.5)).toBeCloseTo(4.3875);
+    const pages = [
+      { width: 390, margin: 20, display: 58.5 },
+      { width: 1440, margin: 1440 * 0.032, display: 158.4 },
+    ];
+    for (const { width, margin, display } of pages) {
+      const room = width - 2 * margin;
+      for (const n of [12, 22, 200]) {
+        const size = fitLine(width, margin, display, n);
+        expect(size).toBeLessThanOrEqual(display);
+        expect(size * n * 0.45).toBeLessThanOrEqual(room + 1e-9);
+        expect(size).toBeCloseTo(Math.min(display, room / (n * 0.45)));
+      }
+    }
+    expect(fitLine(1440, 1440 * 0.032, 158.4, CAFE_CHARS)).toBe(158.4);
   });
 });
 
@@ -342,6 +353,8 @@ describe("the site", () => {
     expect(queued.html).toContain('<meta http-equiv="refresh" content="5"/>');
     expect(queued.html).toContain("Waiting for the comparison before it to finish.");
     expect(firstScreen(queued.html)).toContain("Waiting for the comparison before it to finish.");
+    expect(firstScreen(queued.html)).not.toContain("See every requirement");
+    expect(firstScreen(queued.html)).not.toContain("Shortest tape");
 
     await insertComparison({ id: "finding00001", state: "finding" });
     const finding = await page("/comparisons/finding00001");
@@ -374,6 +387,8 @@ describe("the site", () => {
     expect(checking.html).toContain("1 of 2 items checked");
     expect(firstScreen(checking.html)).toContain("Reading every official page again to find each quoted sentence.");
     expect(firstScreen(checking.html)).toContain("1 of 2 items checked");
+    expect(firstScreen(checking.html)).not.toContain("See every requirement");
+    expect(firstScreen(checking.html)).not.toContain("Shortest tape");
   });
 
   it("leaves a running comparison unharmed when the key is missing", async () => {
@@ -398,7 +413,13 @@ describe("the site", () => {
   });
 
   it("shows a ready comparison in full with no refresh, open cells, a missing item, not stated, and the disclaimer", async () => {
-    const id = await readyComparison();
+    const id = await readyComparison("readygaps001", {
+      verdict: {
+        ...DEFAULT_VERDICT,
+        paragraph:
+          "Port Aldren is the easiest place to start: fees are published and the wait is short. Northhaven asks for more filings.",
+      },
+    });
     const { html } = await page(`/comparisons/${id}`);
     expect(html).not.toContain('http-equiv="refresh"');
     expect(html).toContain("<details");
@@ -409,7 +430,68 @@ describe("the site", () => {
     expect(html).toContain("A starting point to confirm with a lawyer, not legal advice.");
     expect(html).toContain("A page on the same site that may hold the fee: Aldren premises fees,");
     expect(html).toContain('class="law qs"');
-    expect(firstScreen(html)).toContain("A starting point to confirm with a lawyer, not legal advice.");
+    const screen = firstScreen(html);
+    expect(screen).toContain("Shortest tape");
+    expect(screen).toContain("Port Aldren is the easiest place to start: fees are published and the wait is short.");
+    expect(screen).not.toContain("Northhaven asks for more filings");
+    expect(screen).not.toContain("cannot be judged on cost");
+    expect(screen).toContain("See every requirement");
+    expect(screen).toContain('href="#grid"');
+    const disclaimer = "A starting point to confirm with a lawyer, not legal advice.";
+    expect(screen).toContain(disclaimer);
+    expect(screen.indexOf("Shortest tape")).toBeLessThan(screen.indexOf("Port Aldren is the easiest place to start"));
+    expect(screen.indexOf("Port Aldren is the easiest place to start")).toBeLessThan(screen.indexOf("See every requirement"));
+    expect(screen.indexOf("See every requirement")).toBeLessThan(screen.indexOf(disclaimer));
+  });
+
+  it("puts the cost sentence on the first screen only when the named place cannot be judged on cost", async () => {
+    const id = "costwarn0001";
+    await insertComparison({ id, kept: 1, state: "ready" });
+    await insertItem({
+      comparison_id: id,
+      place_index: 0,
+      category_n: 1,
+      name: "Aldren bakery company filing",
+      fee: "USD 300",
+      check_kind: "found",
+    });
+    for (const n of [2, 3, 4]) {
+      await insertItem({
+        comparison_id: id,
+        place_index: 0,
+        category_n: n,
+        name: `Aldren extra ${n}`,
+        fee: "not stated",
+        time: "not stated",
+        check_kind: "quote_missing",
+      });
+    }
+    const { html } = await page(`/comparisons/${id}`);
+    const screen = firstScreen(html);
+    const cost = "Port Aldren cannot be judged on cost: 3 of 4 fees are not stated on official pages.";
+    expect(screen).toContain("Shortest tape");
+    expect(screen).toContain("Port Aldren is the easiest place to start: fees are published and the wait is short.");
+    expect(screen).toContain(cost);
+    expect(screen.indexOf("Port Aldren is the easiest place to start")).toBeLessThan(screen.indexOf(cost));
+    expect(screen.indexOf(cost)).toBeLessThan(screen.indexOf("See every requirement"));
+  });
+
+  it("shows one line per place on the first screen when a ready comparison has no verdict", async () => {
+    const id = await readyComparison("noverdict001");
+    await env.DB.prepare("UPDATE comparisons SET verdict_json = ? WHERE id = ?")
+      .bind(JSON.stringify({ paragraph: "", tradeoffs: [] }), id)
+      .run();
+    const { html } = await page(`/comparisons/${id}`);
+    const screen = firstScreen(html);
+    expect(screen).not.toContain("Shortest tape");
+    expect(screen).toContain("Port Aldren: 2 of 3 fees stated, at least USD 300, longest stated wait: 10 days.");
+    expect(screen).toContain("Northhaven: 1 of 2 fees stated, at least GBP 100, longest stated wait: 10 days.");
+    expect(screen).toContain("Eastmere: 2 of 2 fees stated, USD 200; GBP 50, longest stated wait: 10 days.");
+    expect(screen).toContain("See every requirement");
+    expect(screen.indexOf("Port Aldren: 2 of 3 fees stated")).toBeLessThan(screen.indexOf("See every requirement"));
+    expect(screen.indexOf("See every requirement")).toBeLessThan(
+      screen.indexOf("A starting point to confirm with a lawyer, not legal advice."),
+    );
   });
 
   it("shows a failed comparison with its sentence and no grid", async () => {
@@ -420,6 +502,8 @@ describe("the site", () => {
     expect(html).toContain("/#ask");
     expect(firstScreen(html)).toContain(LAYOUT_FAIL);
     expect(firstScreen(html)).toContain("/#ask");
+    expect(firstScreen(html)).not.toContain("See every requirement");
+    expect(firstScreen(html)).not.toContain("Shortest tape");
   });
 
   it("escapes an activity holding a script tag", async () => {

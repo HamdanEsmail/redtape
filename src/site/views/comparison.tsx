@@ -4,7 +4,7 @@
 import type { ComparisonView } from "../../compare/read";
 import { DISCLAIMER, NO_ITEM } from "../../compare/words";
 import { Exports, Grid, Hero, LawyerQuestions, Verdict } from "../components";
-import { realItems, shortPlace } from "../format";
+import { firstSentence, placeAskLine, realItems, shortPlace } from "../format";
 import { Bar, Footer, HOME_DESCRIPTION, Layout } from "../layout";
 
 const RUNNING: Record<string, string> = {
@@ -26,6 +26,7 @@ function AskStatus(props: { view: ComparisonView }) {
   const said = RUNNING[view.state] ?? RUNNING.queued!;
   const items = realItems(view.items);
   const checked = items.filter((i) => i.check_kind !== null).length;
+  const place = view.verdict.place;
   return (
     <div class="ask">
       <PlacesLine places={view.places} />
@@ -43,7 +44,24 @@ function AskStatus(props: { view: ComparisonView }) {
           </p>
         </>
       ) : null}
-      <p>{DISCLAIMER}</p>
+      {view.state === "ready" ? (
+        <>
+          {place !== null && view.verdict.paragraph.trim() !== "" ? (
+            <p class="lead">
+              {`Shortest tape: ${shortPlace(place)}`} {firstSentence(view.verdict.paragraph)}
+              {view.verdict.cost_warning !== null ? ` ${view.verdict.cost_warning}` : ""}
+            </p>
+          ) : (
+            view.figures.map((fig) => <p class="lead">{placeAskLine(fig)}</p>)
+          )}
+          <p class="go">
+            <a href="#grid">See every requirement</a>
+          </p>
+          <p class="note">{DISCLAIMER}</p>
+        </>
+      ) : (
+        <p>{DISCLAIMER}</p>
+      )}
     </div>
   );
 }

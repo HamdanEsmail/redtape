@@ -111,8 +111,8 @@ td details blockquote{font-size:var(--body);margin-top:10px}
 @media (max-width:860px){
 .verdict .figs{display:block}
 }
-/* The second headline line is sized from its letter count so it stays one line inside the margins. 15 is the look's "to open a cafe?". */
-.hero h1,.hero .under{--n:15;--fit:min(var(--d),calc(var(--d)*15/var(--n)));--lh2:calc(var(--fit)*.86)}
+/* The second headline line is sized from the width between the margins, never larger than the display size. 0.45 is the average width of an Anton capital per em. */
+.hero h1,.hero .under{--n:15;--fit:min(var(--d),calc((100vw - 2 * var(--m)) / (var(--n) * 0.45)));--lh2:calc(var(--fit)*.86)}
 .hero h1{clip-path:inset(0 0 calc(var(--lh2)*.6667) 0)}
 .hero h1 span.l:last-of-type,.hero .under{font-size:var(--fit)}
 .hero h1 span.l:last-of-type{margin-top:calc((var(--lh) - var(--lh2))*.3333)}
@@ -120,4 +120,8 @@ td details blockquote{font-size:var(--body);margin-top:10px}
 /* A long list of lawyer questions stays on the right; the paragraph stays under the heading. */
 .law.qs{grid-template-rows:auto auto 1fr}
 .law.qs ol{grid-row:1/4}
+/* The ready comparison's answer in the red half; body size so a long verdict sentence fits the first screen. The disclaimer is smaller than the other lines. */
+.ask .lead{font-size:var(--body);max-width:68ch;margin:0 auto 12px;line-height:1.25}
+.ask .go{font-size:var(--body);margin:0 auto 12px}
+.ask .note{font-size:var(--small);color:var(--rose);max-width:44ch;margin:0 auto}
 
