@@ -78,6 +78,19 @@ function confirmed(kind: string): boolean {
   return kind === "found";
 }
 
+/** The figures of every place, from the stored item rows. */
+export function figuresOfPlaces(
+  places: string[],
+  rows: { place_index: number; required: string; fee: string; time_to: string; check_kind: string | null }[],
+): PlaceFigures[] {
+  return places.map((place, i) =>
+    figuresForPlace(
+      place,
+      rows.filter((it) => it.place_index === i).map((it) => ({ required: it.required, fee: it.fee, timeTo: it.time_to, checkKind: it.check_kind ?? "" })),
+    ),
+  );
+}
+
 export function figuresForPlace(place: string, items: FigureItem[]): PlaceFigures {
   const requirements = items.filter((i) => /^(yes|depends)\b/i.test(i.required.trim())).length;
   const feesStatedItems = items.filter((i) => !isGap(i.fee));

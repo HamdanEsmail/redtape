@@ -37,6 +37,7 @@ function item(over: Partial<ItemView> & Pick<ItemView, "name" | "place" | "place
     checked_at: CHECKED,
     source_label: "government domain",
     fee_lead: null,
+    watched: false,
     ...over,
   };
   if (over.check_kind === undefined) merged.check_kind = checkKindOf(merged.check_result);
@@ -58,6 +59,7 @@ function view(items: ItemView[], over: Partial<ComparisonView> = {}): Comparison
     sources_count: 3,
     research_minutes: 7,
     questions: [],
+    watch: null,
     ...over,
   };
 }

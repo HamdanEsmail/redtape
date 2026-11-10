@@ -38,6 +38,7 @@ describe("the spend ledger", () => {
       fetch: { usd: 0, rows: 0 },
       search: { usd: 0, rows: 0 },
       wallet: { usd: 0, rows: 0 },
+      monitor_check: { usd: 0, rows: 0 },
     });
     await recordSpend(env.DB, "fetch", 0, "a");
     await recordSpend(env.DB, "fetch", 0, "b");

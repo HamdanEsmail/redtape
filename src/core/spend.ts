@@ -7,10 +7,11 @@
  * - `research_run`: what one TinyResearch run cost. Not a call: one row per finished run.
  * - `fetch`, `search`: a TinyFetch or TinySearch call.
  * - `wallet`: a wallet balance read.
+ * - `monitor_check`: one read of a watched page by a TinyFish Monitor.
  */
-export type SpendKind = "research" | "research_run" | "fetch" | "search" | "wallet";
+export type SpendKind = "research" | "research_run" | "fetch" | "search" | "wallet" | "monitor_check";
 
-export const SPEND_KINDS: readonly SpendKind[] = ["research", "research_run", "fetch", "search", "wallet"];
+export const SPEND_KINDS: readonly SpendKind[] = ["research", "research_run", "fetch", "search", "wallet", "monitor_check"];
 
 /** Appends one row. `ref` says what it was for (a run id, a comparison id, a page's address). */
 export async function recordSpend(db: D1Database, kind: SpendKind, amountUsd: number, ref: string): Promise<void> {

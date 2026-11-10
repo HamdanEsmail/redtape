@@ -127,6 +127,8 @@ td details blockquote{font-size:var(--body);margin-top:10px}
 .law.qs li p,.law.qs .cols>div>p{margin-top:4px;font-size:var(--small);color:var(--rose)}
 .law.qs .all{margin-top:40px}
 @media (max-width:860px){.law.qs .cols{grid-template-columns:1fr;gap:40px;margin-top:40px}}
+/* Under the grid's key, on a saved comparison that is watched. */
+.watched{margin-top:18px;font-size:var(--small);color:var(--soft);max-width:70ch}.watched b{color:var(--tape);font-weight:600}
 /* The sheet and the downloads, in one row under a small heading. */
 .exports h2{font-size:var(--sub)}
 .exports .row{display:flex;flex-wrap:wrap;align-items:center;gap:18px 32px;margin-top:28px}

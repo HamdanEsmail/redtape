@@ -46,7 +46,7 @@ import { TinyFishError } from "../tinyfish/client";
 import { getResearch, startResearch } from "../tinyfish/research";
 import { searchWeb } from "../tinyfish/search";
 import { readBalance } from "../tinyfish/wallet";
-import { figuresForPlace } from "./figures";
+import { figuresOfPlaces } from "./figures";
 import { spendStopReached } from "./money";
 import { releaseSlot, renewSlot, takeSlot } from "./slot";
 import {
@@ -379,14 +379,7 @@ async function searchLeads(env: Env, s: ComparisonRow, now: Date, startedMs: num
 async function finishChecking(env: Env, s: ComparisonRow, now: Date, did: string[]): Promise<void> {
   if ((await pendingItems(env.DB, s.id)) > 0) return;
   if ((await pendingLeads(env.DB, s.id)) > 0) return;
-  const items = await allItems(env.DB, s.id);
-  const places = placesOf(s);
-  const figures = places.map((place, i) =>
-    figuresForPlace(
-      place,
-      items.filter((it) => it.place_index === i).map((it) => ({ required: it.required, fee: it.fee, timeTo: it.time_to, checkKind: it.check_kind ?? "" })),
-    ),
-  );
+  const figures = figuresOfPlaces(placesOf(s), await allItems(env.DB, s.id));
   const r = await env.DB.prepare(
     `UPDATE comparisons SET state = 'ready', figures_json = ?, finished_at = ? WHERE id = ? AND state = 'checking'
        AND NOT EXISTS (SELECT 1 FROM items WHERE comparison_id = ? AND check_state IN ('unchecked', 'checking'))`,

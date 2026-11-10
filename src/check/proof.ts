@@ -4,7 +4,8 @@ import { shownDate } from "../core/dates";
 
 export type PageRead = { ok: true; text: string } | { ok: false; error: string } | null;
 
-export type CheckKind = "found" | "found_fee_missing" | "quote_missing" | "unreadable" | "no_url";
+/** `page_changed`: a watched page changed and the sentence, found before, is no longer on it. */
+export type CheckKind = "found" | "found_fee_missing" | "quote_missing" | "unreadable" | "no_url" | "page_changed";
 
 export type CheckResult = { kind: CheckKind; text: string };
 
@@ -164,6 +165,7 @@ export function checkSentence(kind: CheckKind, date: string): string {
   if (kind === "found_fee_missing") return "The sentence is on the page; the fee is not. Confirm the fee.";
   if (kind === "quote_missing") return `Not confirmed: the page did not show this sentence when read on ${shown}.`;
   if (kind === "unreadable") return `The official page could not be read on ${shown}.`;
+  if (kind === "page_changed") return `The official page changed on ${shown}: check this item again.`;
   return "No official page was given for this item.";
 }
 

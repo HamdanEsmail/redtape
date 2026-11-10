@@ -87,4 +87,19 @@ export const PRICES = {
   fetch: 0,
   search: 0,
   wallet: 0,
+  /** One read of a watched page by a TinyFish Monitor. */
+  monitor_check: 0.005,
 } as const;
+
+// --- Watching a saved comparison -----------------------------------------------------------------
+
+/** Official pages watched in all, across every saved comparison. */
+export const WATCH_PAGES_MAX = 12;
+/** A watched page is read by its Monitor once a day, in this hour (UTC). */
+export const WATCH_HOUR_UTC = 5;
+/** A Monitor create call claimed this long ago with no answer stored is one whose outcome is not
+ *  known. It is never sent again. */
+export const WATCH_CREATE_STALE_MINUTES = 5;
+/** A changed page that cannot be read is tried this many times in all, this far apart. */
+export const RECHECK_ATTEMPTS = 3;
+export const RECHECK_RETRY_MINUTES = 5;

@@ -131,6 +131,7 @@ function CellBody(props: { item: ItemView }) {
         )}
       </p>
       {item.check_result !== "" ? <p>{item.check_result}</p> : null}
+      {item.watched ? <p>Watched: TinyFish Monitor reads this page again once a day.</p> : null}
     </div>
   );
 }
@@ -224,6 +225,13 @@ export function Grid(props: { view: ComparisonView; openable: boolean }) {
           <i class="open"></i>one requirement, fee not stated: left open
         </span>
       </div>
+      {view.watch !== null ? (
+        <p class="watched">
+          <b>Watched.</b> TinyFish Monitor reads {view.watch.pages} of these official pages again once a day.{" "}
+          {view.watch.last_run_at !== null ? `Last read ${shownDate(view.watch.last_run_at)}.` : "The first read is still to come."} When a page changes,
+          its item says so.
+        </p>
+      ) : null}
     </section>
   );
 }

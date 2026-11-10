@@ -12,6 +12,7 @@ import {
   PUBLIC_TTL_DAYS,
   RESEARCH_BUDGET_USD,
   SPEND_STOP_USD,
+  WATCH_PAGES_MAX,
 } from "../../core/limits";
 import { sourceLabel } from "../../core/official";
 import { DISCLAIMER } from "../../compare/words";
@@ -29,7 +30,8 @@ type Credit = {
 
 const credits = creditsJson as Credit[];
 
-const usd = (n: number) => `$${n.toFixed(2)}`;
+/** Dollars to the cent, or to the tenth of a cent when the sum has one (a Monitor read is $0.005). */
+const usd = (n: number) => `$${Number.isInteger(Math.round(n * 1000) / 10) ? n.toFixed(2) : n.toFixed(3)}`;
 
 const PROOF_DAY = "2026-11-09T12:00:00.000Z";
 const PROOF_KINDS: CheckKind[] = ["found", "found_fee_missing", "quote_missing", "unreadable", "no_url"];
@@ -109,6 +111,13 @@ export function HowPage(props: { featuredId: string | null }) {
         currency (shown as at least the sum, with how many are not stated beside it), mixed currencies listed not added,
         the longest stated wait in the page's own words, and the gaps. Currencies are never converted between places.
       </p>
+      <h2>Watching</h2>
+      <p>
+        On a saved comparison, each official page whose fee was stated and found is read again once a day by a TinyFish
+        Monitor, {WATCH_PAGES_MAX} pages in all at most. When a Monitor says its page changed, Redtape reads the page itself
+        and checks the items that rest on it. An item whose sentence is still there keeps its result, with the new day. An
+        item whose sentence is gone says: {checkSentence("page_changed", PROOF_DAY)}
+      </p>
       <h2>Questions for a lawyer</h2>
       <p>
         Where a fee or a wait is not stated, or the sentence is not on the page, Redtape writes the question down. For a
@@ -155,8 +164,8 @@ export function ApiPage(props: { base: string; sampleId: string | null; featured
         <p>
           The comparison: id, activity, places, state, notice, categories, items (place, place_index, category_n, category,
           name, required, authority, fee, time, renewal, ongoing, url, quote, check_result, check_kind, checked_at,
-          source_label, fee_lead), figures, verdict, unclear, sources_count, research_minutes, questions. While it runs,
-          reading it moves it on.
+          source_label, fee_lead, watched), figures, verdict, unclear, sources_count, research_minutes, questions, watch.
+          While it runs, reading it moves it on.
         </p>
         <pre>
           <code>{`curl ${props.base}/api/comparisons/${id}`}</code>
@@ -175,7 +184,7 @@ export function ApiPage(props: { base: string; sampleId: string | null; featured
         </pre>
       </Endpoint>
       <Endpoint method="GET" path="/api/stats">
-        <p>Comparisons, spend_usd, tinyfish calls and cost by service, and the limits including spend_stop_usd.</p>
+        <p>Comparisons, spend_usd, tinyfish calls and cost by service (research, fetch, search, monitor), and the limits including spend_stop_usd.</p>
         <pre>
           <code>{`curl ${props.base}/api/stats`}</code>
         </pre>
@@ -203,7 +212,11 @@ export function AboutPage(props: { stats: Stats; featuredId: string | null }) {
     ],
     ["Search", "Finds each place's official sites before the research, and a possible fee page for a gap.", `${plural(t.search.calls, "search", "searches")}, ${usd(t.search.usd)}`],
     ["Fetch", "Reads every official page again for the proof check.", `${plural(t.fetch.calls, "read")}, ${usd(t.fetch.usd)}`],
-    ["Monitor", "Watches the fee pages of saved comparisons for changes.", `${plural(0, "call")}, ${usd(0)}`],
+    [
+      "Monitor",
+      `Reads the official pages of saved comparisons again once a day, ${plural(t.monitor.pages, "page")} now, and reports a change.`,
+      `${plural(t.monitor.checks, "check")}, ${usd(t.monitor.usd)}`,
+    ],
   ];
   return (
     <Page

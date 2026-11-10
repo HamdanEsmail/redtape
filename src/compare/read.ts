@@ -2,7 +2,8 @@ import { lawyerSheet, type LawyerQuestion } from "../brief/questions";
 import { sourceLabel } from "../core/official";
 import { checkSentence, type CheckKind } from "../check/proof";
 import { firstWords } from "../research/report";
-import { figuresForPlace, type PlaceFigures } from "./figures";
+import { watchOf } from "../watch/watch";
+import { figuresOfPlaces, type PlaceFigures } from "./figures";
 import { allItems, FEE_LEAD_NONE, FEE_LEAD_SEARCHING, getComparison, placesOf, type ComparisonRow, type ItemRow } from "./store";
 import { failedNotice, NO_ITEM } from "./words";
 
@@ -26,6 +27,8 @@ export type ItemView = {
   checked_at: string | null;
   source_label: string | null;
   fee_lead: { title: string; url: string } | null;
+  /** True when a TinyFish Monitor reads this item's official page again once a day. */
+  watched: boolean;
 };
 
 export type ComparisonView = {
@@ -42,6 +45,9 @@ export type ComparisonView = {
   sources_count: number | null;
   research_minutes: number | null;
   questions: LawyerQuestion[];
+  /** The watch on a saved comparison: how many official pages a Monitor reads again, and the
+   *  last run reported. Null when the comparison is not watched. */
+  watch: { pages: number; last_run_at: string | null } | null;
 };
 
 function categoriesOf(row: ComparisonRow): string[] {
@@ -103,6 +109,8 @@ export async function readComparison(db: D1Database, id: string): Promise<Compar
   const places = placesOf(s);
   const categories = categoriesOf(s);
   const rows = await allItems(db, id);
+  const watch = await watchOf(db, id);
+  const watchedUrls = new Set(watch?.urls ?? []);
   const items: ItemView[] = [];
   for (const it of rows) {
     const date = it.checked_at ?? "";
@@ -126,6 +134,7 @@ export async function readComparison(db: D1Database, id: string): Promise<Compar
       checked_at: it.checked_at,
       source_label: it.host === null ? null : sourceLabel(it.host),
       fee_lead: feeLeadOf(it.fee_lead_json),
+      watched: it.url !== null && watchedUrls.has(it.url),
     });
   }
   if (s.state === "ready" || s.state === "checking") {
@@ -151,20 +160,13 @@ export async function readComparison(db: D1Database, id: string): Promise<Compar
           checked_at: null,
           source_label: null,
           fee_lead: null,
+          watched: false,
         });
       }
     }
   }
   items.sort((a, b) => a.place_index - b.place_index || a.category_n - b.category_n || a.name.localeCompare(b.name));
-  const figures: PlaceFigures[] =
-    s.figures_json !== null
-      ? (JSON.parse(s.figures_json) as PlaceFigures[])
-      : places.map((place, i) =>
-          figuresForPlace(
-            place,
-            rows.filter((it) => it.place_index === i).map((it) => ({ required: it.required, fee: it.fee, timeTo: it.time_to, checkKind: it.check_kind ?? "" })),
-          ),
-        );
+  const figures: PlaceFigures[] = s.figures_json !== null ? (JSON.parse(s.figures_json) as PlaceFigures[]) : figuresOfPlaces(places, rows);
   const v = verdictOf(s);
   const place = namedPlace(v.paragraph, places);
   const fig = figures.find((f) => f.place === place);
@@ -188,6 +190,7 @@ export async function readComparison(db: D1Database, id: string): Promise<Compar
     sources_count: s.sources_count,
     research_minutes: s.research_minutes,
     questions: [],
+    watch: watch === null ? null : { pages: watch.pages, last_run_at: watch.last_run_at },
   };
   view.questions = lawyerSheet(view).questions;
   return view;

@@ -193,6 +193,11 @@ that page. An item whose sentence is gone shows "The official page changed on <d
 Built last, and only after the product is live. Only Monitors created by this project, with their ids in its
 database, are ever read or deleted.
 
+`POST /admin/watch { id }` lists the pages; the every-minute job creates one Monitor in a run and reads one
+changed page again in a run. A Monitor calls `POST /hooks/monitor/<secret>` after each read; a run is booked
+once, at $0.005. A create call whose outcome is not known is never sent again. `POST /admin/unwatch { id }`
+deletes the comparison's Monitors.
+
 ## 10. Where TinyFish is used
 
 | Service | Its job here |

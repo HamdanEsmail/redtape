@@ -1,10 +1,12 @@
 // The job that runs every minute (wrangler.jsonc `* * * * *`): delete public comparisons past
 // their time, move every unfinished comparison forward, so a comparison finishes even when nobody
-// is watching its page, then correct one run's booked cost from a later wallet read. Each step
-// runs even when an earlier one fails.
+// is watching its page, correct one run's booked cost from a later wallet read, then the watch on
+// saved comparisons: create one Monitor and read one changed page again. Each step runs even when
+// an earlier one fails.
 import type { Env } from "./env";
 import { advance, settleRunCost, type ReadBudget } from "./compare/advance";
 import { CHECKS_PER_ADVANCE } from "./core/limits";
+import { createNextMonitor, recheckChangedPage } from "./watch/watch";
 
 const ADVANCE_PER_RUN = 5;
 
@@ -47,6 +49,17 @@ export async function runCron(env: Env, now: Date = new Date()): Promise<CronRes
     await settleRunCost(env, now);
   } catch {
     out.failed_steps.push("settle");
+  }
+  // Watching: one Monitor created, and one changed page read again, in a run.
+  try {
+    await createNextMonitor(env, now);
+  } catch {
+    out.failed_steps.push("watch");
+  }
+  try {
+    await recheckChangedPage(env, now, budget);
+  } catch {
+    out.failed_steps.push("recheck");
   }
   if (out.failed_steps.length > 0) console.warn("cron", JSON.stringify(out));
   return out;

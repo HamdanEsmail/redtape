@@ -4,7 +4,7 @@ import type { ComparisonView, ItemView } from "../compare/read";
 import { NO_ITEM } from "../compare/words";
 import { shownDate } from "../core/dates";
 
-export type QuestionKind = "fee_not_stated" | "time_not_stated" | "quote_missing" | "fee_not_on_page" | "unreadable" | "no_url";
+export type QuestionKind = "fee_not_stated" | "time_not_stated" | "quote_missing" | "page_changed" | "fee_not_on_page" | "unreadable" | "no_url";
 
 export type LawyerQuestion = {
   kind: QuestionKind;
@@ -26,7 +26,7 @@ export type LawyerSheet = {
   items: ItemView[];
 };
 
-const KINDS: readonly QuestionKind[] = ["fee_not_stated", "time_not_stated", "quote_missing", "fee_not_on_page", "unreadable", "no_url"];
+const KINDS: readonly QuestionKind[] = ["fee_not_stated", "time_not_stated", "quote_missing", "page_changed", "fee_not_on_page", "unreadable", "no_url"];
 
 function dateOf(item: ItemView): string {
   return item.checked_at === null ? "" : shownDate(item.checked_at);
@@ -39,6 +39,7 @@ function textFor(kind: QuestionKind, item: ItemView): string {
   if (kind === "fee_not_stated") return `What is the fee for ${name} in ${place}? The official page does not state it.`;
   if (kind === "time_not_stated") return `How long does ${name} take in ${place}? The official page does not state it.`;
   if (kind === "quote_missing") return `Is ${name} still required in ${place}? The page did not show the quoted sentence when read on ${date}.`;
+  if (kind === "page_changed") return `Is ${name} still required in ${place}? The official page changed on ${date} and no longer shows the quoted sentence.`;
   if (kind === "fee_not_on_page") return `Is the fee for ${name} in ${place} still ${item.fee}? The official page shows the sentence but not the amount, read on ${date}.`;
   if (kind === "unreadable") return `Is ${name} still required in ${place}? The official page could not be read on ${date}.`;
   return `Where is ${name} in ${place} set out officially? No official page was given for it.`;
@@ -49,6 +50,7 @@ function kindsOf(item: ItemView): QuestionKind[] {
     fee_not_stated: isGap(item.fee),
     time_not_stated: isGap(item.time),
     quote_missing: item.check_kind === "quote_missing",
+    page_changed: item.check_kind === "page_changed",
     fee_not_on_page: item.check_kind === "found_fee_missing",
     unreadable: item.check_kind === "unreadable",
     no_url: item.check_kind === "no_url",

@@ -22,6 +22,7 @@ export async function readStats(db: D1Database, now: Date = new Date()) {
   const by = await spendByKind(db);
   const spent = await totalSpend(db);
   const usedPublic = await usedToday(db, ALL, now);
+  const watched = await db.prepare("SELECT COUNT(*) AS n FROM watches WHERE status = 'active'").first<{ n: number }>();
   return {
     comparisons: { total: counts?.comparisons ?? 0, ready: counts?.ready ?? 0, failed: counts?.failed ?? 0, running: counts?.running ?? 0 },
     spend_usd: money(spent),
@@ -30,6 +31,8 @@ export async function readStats(db: D1Database, now: Date = new Date()) {
       fetch: { calls: by.fetch.rows, usd: money(by.fetch.usd) },
       search: { calls: by.search.rows, usd: money(by.search.usd) },
       wallet: { calls: by.wallet.rows, usd: money(by.wallet.usd) },
+      /** `checks`: reads of watched pages by a Monitor. `pages`: official pages watched now. */
+      monitor: { checks: by.monitor_check.rows, usd: money(by.monitor_check.usd), pages: watched?.n ?? 0 },
     },
     limits: {
       spend_stop_usd: SPEND_STOP_USD,

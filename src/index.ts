@@ -4,12 +4,14 @@ import { runCron } from "./cron";
 import type { Env } from "./env";
 import { comparisonsRouter } from "./handlers/comparisons";
 import { statsRouter } from "./handlers/stats";
+import { watchesRouter } from "./handlers/watches";
 import { notFound, siteRouter } from "./site/router";
 
 const app = new Hono<{ Bindings: Env }>();
 
 app.route("/", comparisonsRouter);
 app.route("/", statsRouter);
+app.route("/", watchesRouter);
 
 app.post("/api/admin/ping", adminOnly, (c) => c.json({ ok: true }));
 

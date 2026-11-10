@@ -76,6 +76,23 @@ I imported the two finished runs of 9 November into a local copy (free: reading 
 
 **The proof check on a long page.** The largest official page in the two runs is 64,818 characters. Splitting it into words and comparing every quote word with every page word took 6 to 15 ms of processor time for one item, more than a whole request may use on the plan this runs on. The check now looks only around the places where the longest word from the middle of the quote appears (every run long enough to count must hold that word), and compares in one pass. The same item takes about 0.6 ms, and the cost no longer grows with the page. A test compares the result with the plain word-by-word way on 400 made-up pages, and the old and new way agree on all 46 real pages. The every-minute job reads 4 pages in one run in all, not 4 for each comparison. 240 tests.
 
+## The pages with real comparisons (10 November)
+
+Photographed at 1440 wide from the local copy and read through. The verdict's place is found by its first words, so "Manchester is the easiest place to start" gives "Shortest tape: Manchester" (the asked place is "Manchester, England"). A comparison's own page gives the verdict whole; the home cuts it to fit. The questions for a lawyer sit in three columns, one for each place, each item's questions together: the page is a quarter shorter. The sheet and the two downloads share one row. An unclear rule on the home no longer ends in an open bracket. The API example uses real places.
+
+## Task 7: watching a saved comparison
+
+Built before the site is live; nothing is watched until `POST /admin/watch` is called for a saved comparison.
+
+- **Which pages.** Each official page with an item whose fee is stated and whose sentence was found, 12 pages in all at most (`watches`, migration `0004_watching.sql`).
+- **The Monitors.** The every-minute job creates one TinyFish Page Monitor in a run: the row is claimed first, the Monitor reads once a day in the 05:00 UTC hour and calls `POST /hooks/monitor/<secret>`. A plain refusal marks the page failed; an answer that leaves the outcome open marks it unknown and the call is never sent again. A Monitor whose first read gave no text is deleted at once.
+- **The hook.** A wrong secret is 404 with no body, a Monitor that is not Redtape's own is 404, a run delivered twice is booked once. Each run is one ledger row at $0.005.
+- **A change.** The page is read again with Fetch and the items that rest on it are checked again. A sentence still there keeps its result with the new day. A sentence that was there and is gone becomes "The official page changed on <date>: check this item again.", counts as a gap, and becomes a question for the lawyer. A page that cannot be read is tried 3 times, 5 minutes apart.
+- **Stopping.** `POST /admin/unwatch` deletes each Monitor by its own id, then its row.
+- **What the pages say.** A watched comparison says how many of its pages are read again and when the last read was; `/api/stats` and the About page count the checks and their cost.
+
+Not built: reading a Monitor's own history. TinyFish gives none over the API, so a Monitor that stops calling shows only as an old "last read" day. 270 tests.
+
 ## Paid TinyFish calls
 
 None. Tests intercept every outbound request. There is no `.dev.vars` in this project.
