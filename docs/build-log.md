@@ -114,6 +114,10 @@ The two pages that could not be read are both on Manchester City Council's site.
 
 **The pages, switched on.** Once the Worker is warm the home takes 9 ms of processor time and a comparison's page 13 to 14; the other pages 3 to 7. The first page after a deploy took 31 to 39 ms. All ended `ok`.
 
+**The watch, switched on.** `POST /admin/watch` for both saved comparisons listed 6 pages each, 12 in all. The every-minute job created one Monitor a minute for 12 minutes; all 12 are active, each with its id stored. 6 items of the cafe and 10 of the drone business now say they are watched. The first daily reads come in the 05:00 UTC hour.
+
 ## Paid TinyFish calls
 
-None so far. The three research runs of 9 November were free runs of the day, adopting a saved run costs nothing, and Fetch and Search are free. Tests intercept every outbound request and never reach TinyFish.
+- 10 November: 12 Page Monitors created for the watch, each booked as one read at $0.005: $0.06. From then on about $0.06 a day while the watch is on.
+
+Nothing else. The three research runs of 9 November were free runs of the day, adopting a saved run costs nothing, and Fetch and Search are free. Tests intercept every outbound request and never reach TinyFish.
