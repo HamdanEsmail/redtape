@@ -47,6 +47,7 @@ function item(over: Partial<ItemView> & Pick<ItemView, "name" | "place" | "place
 function view(items: ItemView[], over: Partial<ComparisonView> = {}): ComparisonView {
   return {
     id: "abcdefghijkl",
+    created_at: "2026-11-09T10:00:00.000Z",
     activity: "open a small bakery",
     places: ["Port Aldren", "Northhaven", "Eastmere"],
     state: "ready",

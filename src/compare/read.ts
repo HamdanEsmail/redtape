@@ -36,6 +36,8 @@ export type ComparisonView = {
   activity: string;
   places: string[];
   state: ComparisonRow["state"];
+  /** When the comparison was asked for. */
+  created_at: string;
   notice: string | null;
   categories: string[];
   items: ItemView[];
@@ -175,6 +177,7 @@ export async function readComparison(db: D1Database, id: string): Promise<Compar
     activity: s.activity,
     places,
     state: s.state,
+    created_at: s.created_at,
     notice: s.state === "failed" ? failedNotice(s.failed_reason) : null,
     categories,
     items,

@@ -163,7 +163,7 @@ export function ApiPage(props: { base: string; sampleId: string | null; featured
       </Endpoint>
       <Endpoint method="GET" path="/api/comparisons/:id">
         <p>
-          The comparison: id, activity, places, state, notice, categories, items (place, place_index, category_n, category,
+          The comparison: id, activity, places, state, created_at, notice, categories, items (place, place_index, category_n, category,
           name, required, authority, fee, time, renewal, ongoing, url, quote, check_result, check_kind, checked_at,
           source_label, fee_lead, watched), figures, verdict, unclear, sources_count, research_minutes, questions, watch.
           While it runs, reading it moves it on.

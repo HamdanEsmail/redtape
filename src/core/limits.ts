@@ -14,6 +14,10 @@ export const CATEGORIES_MAX = 12;
 
 // --- How a comparison runs -----------------------------------------------------------------------
 
+/** How long a whole comparison takes, in minutes, as the runs so far have gone: about a minute to
+ *  find the official sites, 5 to 10 of research, 9 to 15 of reading every page again. The page of a
+ *  running comparison says so. */
+export const COMPARISON_TAKES_MINUTES = { from: 15, to: 25 } as const;
 /** One comparison runs a TinyResearch at a time; a holder of the run slot older than this no
  *  longer blocks the queue (a run takes 5 to 20 minutes; 25 minutes without an end fails it). The
  *  holder's clock starts again when its research start is sent. */

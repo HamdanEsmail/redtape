@@ -1,4 +1,5 @@
 // Honest-state sentences. These words are exact.
+import { COMPARISON_TAKES_MINUTES } from "../core/limits";
 
 export const DAILY_LIMIT = "Today's 2 new comparisons are used. Saved comparisons still open.";
 export const VISITOR_LIMIT = "You have started today's comparison from here already. Saved comparisons still open.";
@@ -17,6 +18,22 @@ export const RUNNING: Record<string, string> = {
   researching: "TinyResearch is reading the official pages. This takes about five to ten minutes.",
   checking: "Reading every official page again to find each quoted sentence.",
 };
+
+const STEP: Record<string, number> = { finding: 1, researching: 2, checking: 3 };
+
+/**
+ * Under a running comparison's sentence: which of the three steps it is on, how long a whole
+ * comparison takes, and how long ago this one was asked for. A visitor who is not told how long it
+ * takes reads a working comparison as a stuck one.
+ */
+export function progressLine(state: string, createdAt: string, now: Date): string {
+  const takes = `${COMPARISON_TAKES_MINUTES.from} to ${COMPARISON_TAKES_MINUTES.to} minutes`;
+  const step = STEP[state];
+  if (step === undefined) return `A comparison takes ${takes} once it starts. This page refreshes itself.`;
+  const minutes = Math.floor((now.getTime() - Date.parse(createdAt)) / 60_000);
+  const ago = !(minutes >= 1) ? "less than a minute ago" : minutes === 1 ? "1 minute ago" : `${minutes} minutes ago`;
+  return `Step ${step} of 3. A comparison takes ${takes} in all, and this one was started ${ago}. This page refreshes itself.`;
+}
 
 /** The sentence a running or failed comparison shows. Empty when it is ready. */
 export function stateLine(state: string, notice: string | null): string {

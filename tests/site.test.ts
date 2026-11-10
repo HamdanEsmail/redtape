@@ -169,18 +169,26 @@ describe("the site", () => {
     expect(firstScreen(queued.html)).toContain("Waiting for the comparison before it to finish.");
     expect(firstScreen(queued.html)).not.toContain("See every requirement");
     expect(firstScreen(queued.html)).not.toContain("Shortest tape");
+    expect(firstScreen(queued.html)).toContain("A comparison takes 15 to 25 minutes once it starts. This page refreshes itself.");
 
-    await insertComparison({ id: "finding00001", state: "finding" });
+    const startedAgo = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString();
+    await insertComparison({ id: "finding00001", state: "finding", created_at: startedAgo(0.3) });
     const finding = await page("/comparisons/finding00001");
     expect(firstScreen(finding.html)).toContain("Finding the official government sites of each place.");
+    expect(firstScreen(finding.html)).toContain(
+      "Step 1 of 3. A comparison takes 15 to 25 minutes in all, and this one was started less than a minute ago. This page refreshes itself.",
+    );
 
-    await insertComparison({ id: "research0001", state: "researching" });
+    await insertComparison({ id: "research0001", state: "researching", created_at: startedAgo(6.5) });
     const researching = await page("/comparisons/research0001");
     expect(firstScreen(researching.html)).toContain(
       "TinyResearch is reading the official pages. This takes about five to ten minutes.",
     );
+    expect(firstScreen(researching.html)).toContain(
+      "Step 2 of 3. A comparison takes 15 to 25 minutes in all, and this one was started 6 minutes ago. This page refreshes itself.",
+    );
 
-    await insertComparison({ id: "checking0001", state: "checking" });
+    await insertComparison({ id: "checking0001", state: "checking", created_at: startedAgo(1.5) });
     await insertItem({
       comparison_id: "checking0001",
       place_index: 0,
@@ -201,6 +209,7 @@ describe("the site", () => {
     expect(checking.html).toContain("1 of 2 items checked");
     expect(firstScreen(checking.html)).toContain("Reading every official page again to find each quoted sentence.");
     expect(firstScreen(checking.html)).toContain("1 of 2 items checked");
+    expect(firstScreen(checking.html)).toContain("Step 3 of 3. A comparison takes 15 to 25 minutes in all, and this one was started 1 minute ago.");
     expect(firstScreen(checking.html)).not.toContain("See every requirement");
     expect(firstScreen(checking.html)).not.toContain("Shortest tape");
   });

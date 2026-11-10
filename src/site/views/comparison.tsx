@@ -2,7 +2,7 @@
 // full, each cell a details element, the verdict, the lawyer's questions, the exports), or
 // failed (the failure sentence and a link back to the form). An unknown id is a 404 in the shell.
 import type { ComparisonView } from "../../compare/read";
-import { DISCLAIMER, NO_ITEM, RUNNING } from "../../compare/words";
+import { DISCLAIMER, NO_ITEM, progressLine, RUNNING } from "../../compare/words";
 import { Exports, Grid, Hero, LawyerQuestions, Verdict } from "../components";
 import { firstSentence, placeAskLine, realItems, shortPlace } from "../format";
 import { Bar, Footer, HOME_DESCRIPTION, Layout } from "../layout";
@@ -29,6 +29,7 @@ function AskStatus(props: { view: ComparisonView }) {
           {checked} of {items.length} items checked
         </p>
       ) : null}
+      {running ? <p>{progressLine(view.state, view.created_at, new Date())}</p> : null}
       {view.state === "failed" ? (
         <>
           <p>{view.notice}</p>
