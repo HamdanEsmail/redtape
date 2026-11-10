@@ -121,3 +121,12 @@ The two pages that could not be read are both on Manchester City Council's site.
 - 10 November: 12 Page Monitors created for the watch, each booked as one read at $0.005: $0.06. From then on about $0.06 a day while the watch is on.
 
 Nothing else. The three research runs of 9 November were free runs of the day, adopting a saved run costs nothing, and Fetch and Search are free. Tests intercept every outbound request and never reach TinyFish.
+
+## A running comparison says how long it takes, 10 November
+
+A comparison a visitor starts takes 15 to 25 minutes: about a minute to find the official sites, 5 to 10
+of research, and 9 to 15 to read every page again (the two saved ones took 9 and 15). The running page
+said what was happening but not how long the whole thing takes, so a working comparison could read as a
+stuck one. Under its sentence it now says Step 1, 2 or 3 of 3, that a comparison takes 15 to 25 minutes
+in all, how many minutes ago it was started, and that the page refreshes itself. The comparison's JSON
+carries `created_at`. Live as version `28d2ee3b` at 12:12 UTC.
