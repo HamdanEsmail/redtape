@@ -111,7 +111,7 @@ function Ready(props: { view: ComparisonView }) {
   return (
     <>
       <Grid view={props.view} openable />
-      <Verdict view={props.view} />
+      <Verdict view={props.view} full />
       <LawyerQuestions view={props.view} />
       <Exports id={props.view.id} />
     </>

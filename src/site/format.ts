@@ -100,12 +100,16 @@ export function authoritiesOf(items: ItemView[]): string[] {
   return [...new Set(names)].slice(0, 9);
 }
 
-/** An unclear line as the home writes it: the place in bold, the rest after a dash or colon. */
+/** An address in a line of prose, with the bracket around it when it has one. */
+const ADDRESS = /\s*[[(]\s*https?:\/\/[^\s\])]+\s*[\])]|\s*https?:\/\/\S+/g;
+
+/** An unclear line as the home writes it: the place in bold, the rest after a dash or colon,
+ *  without the addresses it cites (the sheet for a lawyer carries them). */
 export function unclearParts(line: string): { head: string; rest: string } {
   const [a, ...b] = line.split(/\s[–-]\s|:\s/);
   return {
     head: short(a ?? "", 60),
-    rest: short(b.join(": ").replace(/https?:\/\/\S+/g, "").trim(), 230),
+    rest: short(b.join(": ").replace(ADDRESS, "").replace(/\s+/g, " ").trim(), 230),
   };
 }
 
@@ -139,7 +143,8 @@ export function firstSentence(paragraph: string): string {
 export function placeAskLine(fig: PlaceFigures): string {
   const fees =
     fig.feesSum !== null ? fig.feesSum : fig.feesList !== null ? fig.feesList.join("; ") : "no stated fee";
-  return `${shortPlace(fig.place)}: ${fig.feesStated} of ${fig.feesOf} fees stated, ${fees}, longest stated wait: ${waitHead(fig.longestWait)}.`;
+  const wait = waitHead(fig.longestWait);
+  return `${shortPlace(fig.place)}: ${fig.feesStated} of ${fig.feesOf} fees stated, ${fees}, longest stated wait: ${wait}${wait.endsWith("…") ? "" : "."}`;
 }
 
 /** The activity as a saved row writes it: first letter upper-case. */

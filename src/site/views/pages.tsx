@@ -148,7 +148,7 @@ export function ApiPage(props: { base: string; sampleId: string | null; featured
         <pre>
           <code>{`curl -X POST ${props.base}/api/comparisons \\
   -H 'content-type: application/json' \\
-  -d '{"activity":"open a small bakery","places":["Port Aldren","Northhaven","Eastmere"]}'`}</code>
+  -d '{"activity":"open a small bookshop","places":["Austin, Texas","Manchester, England","Dubai mainland"]}'`}</code>
         </pre>
       </Endpoint>
       <Endpoint method="GET" path="/api/comparisons/:id">

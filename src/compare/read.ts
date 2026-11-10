@@ -1,6 +1,7 @@
 import { lawyerSheet, type LawyerQuestion } from "../brief/questions";
 import { sourceLabel } from "../core/official";
 import { checkSentence, type CheckKind } from "../check/proof";
+import { firstWords } from "../research/report";
 import { figuresForPlace, type PlaceFigures } from "./figures";
 import { allItems, FEE_LEAD_NONE, FEE_LEAD_SEARCHING, getComparison, placesOf, type ComparisonRow, type ItemRow } from "./store";
 import { failedNotice, NO_ITEM } from "./words";
@@ -65,11 +66,33 @@ function feeLeadOf(json: string | null): { title: string; url: string } | null {
   return null;
 }
 
-function namedPlace(paragraph: string, places: string[]): string | null {
+const WORD_CHAR = /[\p{L}\p{N}]/u;
+
+/** Where `name` stands in `text` as whole words, or -1. Both are lower-case. */
+function wholeAt(text: string, name: string): number {
+  for (let at = text.indexOf(name); at !== -1; at = text.indexOf(name, at + 1)) {
+    const before = at === 0 ? "" : text[at - 1]!;
+    const after = text[at + name.length] ?? "";
+    if (!WORD_CHAR.test(before) && !WORD_CHAR.test(after)) return at;
+  }
+  return -1;
+}
+
+/** The asked place a verdict paragraph names first, by its full name or by its first words
+ *  ("Manchester" for "Manchester, England"). Null when it names none. */
+export function namedPlace(paragraph: string, places: string[]): string | null {
   const lower = paragraph.toLowerCase();
   let best: string | null = null;
-  for (const p of places) {
-    if (lower.includes(p.toLowerCase()) && (best === null || p.length > best.length)) best = p;
+  let bestAt = Infinity;
+  for (const place of places) {
+    for (const name of [place.toLowerCase(), firstWords(place)]) {
+      if (name === "") continue;
+      const at = wholeAt(lower, name);
+      if (at !== -1 && at < bestAt) {
+        best = place;
+        bestAt = at;
+      }
+    }
   }
   return best;
 }

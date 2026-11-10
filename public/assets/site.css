@@ -117,9 +117,21 @@ td details blockquote{font-size:var(--body);margin-top:10px}
 .hero h1 span.l:last-of-type,.hero .under{font-size:var(--fit)}
 .hero h1 span.l:last-of-type{margin-top:calc((var(--lh) - var(--lh2))*.3333)}
 .hero .under{top:calc(var(--seam) - var(--lh2)*.3333);clip-path:inset(calc(var(--lh2)*.3333) 0 0 0)}
-/* A long list of lawyer questions stays on the right; the paragraph stays under the heading. */
-.law.qs{grid-template-rows:auto auto 1fr}
-.law.qs ol{grid-row:1/4}
+/* A comparison's questions sit in three columns, one for each place, like the grid above them. */
+.law.qs{display:block}
+.law.qs .say{max-width:46ch}
+.law.qs .cols{display:grid;grid-template-columns:repeat(3,1fr);gap:48px 32px;margin-top:64px}
+.law.qs .cols h3{font-size:var(--sub);font-weight:400;margin-bottom:24px}
+.law.qs li{padding:0 0 22px;overflow-wrap:anywhere}
+.law.qs li span{display:block}.law.qs li span+span{margin-top:6px}
+.law.qs li p,.law.qs .cols>div>p{margin-top:4px;font-size:var(--small);color:var(--rose)}
+.law.qs .all{margin-top:40px}
+@media (max-width:860px){.law.qs .cols{grid-template-columns:1fr;gap:40px;margin-top:40px}}
+/* The sheet and the downloads, in one row under a small heading. */
+.exports h2{font-size:var(--sub)}
+.exports .row{display:flex;flex-wrap:wrap;align-items:center;gap:18px 32px;margin-top:28px}
+.exports .row a{padding:0}
+.exports .row .btn{padding:14px 22px}
 /* The ready comparison's answer in the red half; body size so a long verdict sentence fits the first screen. The disclaimer is smaller than the other lines. */
 .ask .lead{font-size:var(--body);max-width:68ch;margin:0 auto 12px;line-height:1.25}
 .ask .go{font-size:var(--body);margin:0 auto 12px}

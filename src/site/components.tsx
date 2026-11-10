@@ -252,18 +252,21 @@ function PlaceFiguresBlock(props: { fig: PlaceFigures }) {
   );
 }
 
-export function Verdict(props: { view: ComparisonView }) {
+/** The verdict. The home cuts the research's words to fit its screen; a comparison's own page
+ *  (`full`) gives them whole. */
+export function Verdict(props: { view: ComparisonView; full?: boolean }) {
   const { view } = props;
+  const full = props.full === true;
   const heading = view.verdict.place === null ? "Shortest tape" : `Shortest tape: ${shortPlace(view.verdict.place)}`;
   return (
-    <section class="verdict" data-ink="dark" data-bg="tape">
+    <section class={full ? "verdict whole" : "verdict"} data-ink="dark" data-bg="tape">
       <h2 class="disp in">{heading}</h2>
-      <p class="why in">{short(view.verdict.paragraph, 330)}</p>
+      <p class="why in">{full ? view.verdict.paragraph : short(view.verdict.paragraph, 330)}</p>
       <ul class="in">
         {view.verdict.tradeoffs.map((t) => (
           <li>
             <b>{shortPlace(t.place)}</b>
-            {short(t.line, 210)}
+            {full ? t.line : short(t.line, 210)}
           </li>
         ))}
       </ul>
@@ -451,28 +454,60 @@ function QuestionLead(props: { q: LawyerQuestion }) {
   );
 }
 
+/** A place's questions, those about the same item together and in their first order. */
+function byItem(questions: LawyerQuestion[]): LawyerQuestion[][] {
+  const groups = new Map<string, LawyerQuestion[]>();
+  for (const q of questions) {
+    const group = groups.get(q.item);
+    if (group === undefined) groups.set(q.item, [q]);
+    else group.push(q);
+  }
+  return [...groups.values()];
+}
+
 export function LawyerQuestions(props: { view: ComparisonView }) {
   return (
     <section class="law qs" data-ink="dark" data-bg="deep">
       <h2 class="disp in">Then ask a lawyer</h2>
       <p class="say in">Where the official pages are unclear or disagree, Redtape does not pick a side. It writes the question down for the person who can settle it.</p>
-      <ol class="in">
-        {props.view.questions.map((q) => (
-          <li>
-            <b>{shortPlace(q.place)}</b>
-            {q.text}
-            {q.url !== null && q.url !== "" ? (
-              <p>
-                <LinkOrText url={q.url}>{hostOf(q.url) || q.url}</LinkOrText>
-              </p>
-            ) : null}
-            <QuestionLead q={q} />
-          </li>
-        ))}
-        <li>
-          <a href={`/comparisons/${props.view.id}/brief`}>Every question for a lawyer</a>
-        </li>
-      </ol>
+      <div class="cols in">
+        {props.view.places.map((place, pi) => {
+          const asked = props.view.questions.filter((q) => q.place_index === pi);
+          return (
+            <div>
+              <h3 class="disp">{shortPlace(place)}</h3>
+              {asked.length === 0 ? (
+                <p>Nothing to ask here: every fee and wait is stated, and every sentence was found.</p>
+              ) : (
+                <ol>
+                  {byItem(asked).map((qs) => {
+                    const url = qs.find((q) => q.url !== null && q.url !== "")?.url ?? null;
+                    return (
+                      <li>
+                        <b>{qs[0]!.item}</b>
+                        {qs.map((q) => (
+                          <span>{q.text}</span>
+                        ))}
+                        {url !== null ? (
+                          <p>
+                            <LinkOrText url={url}>{hostOf(url) || url}</LinkOrText>
+                          </p>
+                        ) : null}
+                        {qs.map((q) => (
+                          <QuestionLead q={q} />
+                        ))}
+                      </li>
+                    );
+                  })}
+                </ol>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <p class="all in">
+        <a href={`/comparisons/${props.view.id}/brief`}>Every question for a lawyer</a>
+      </p>
     </section>
   );
 }
@@ -519,8 +554,14 @@ export function Close() {
 export function Exports(props: { id: string }) {
   return (
     <section class="exports" data-ink="light">
-      <a href={`/comparisons/${props.id}.json`}>Download as JSON</a>
-      <a href={`/comparisons/${props.id}.csv`}>Download as a spreadsheet</a>
+      <h2 class="disp in">Take it with you</h2>
+      <div class="row in">
+        <a class="btn" href={`/comparisons/${props.id}/brief`}>
+          The sheet for a lawyer
+        </a>
+        <a href={`/comparisons/${props.id}.csv`}>Download as a spreadsheet</a>
+        <a href={`/comparisons/${props.id}.json`}>Download as JSON</a>
+      </div>
     </section>
   );
 }
