@@ -3,6 +3,8 @@
 export const DAILY_LIMIT = "Today's 2 new comparisons are used. Saved comparisons still open.";
 export const VISITOR_LIMIT = "You have started today's comparison from here already. Saved comparisons still open.";
 export const SPEND_STOP = "New comparisons are closed: this demo has spent its budget. Saved comparisons still open.";
+/** Shown when the site cannot count a visitor (its secret is not set), so it starts nothing. */
+export const CLOSED = "New comparisons are closed for the moment. Saved comparisons still open.";
 export const LAYOUT_FAIL = "This comparison did not finish: the research did not come back in the agreed layout. Nothing is shown.";
 export const TIMEOUT_FAIL = "This comparison did not finish: TinyResearch took too long. Nothing is shown.";
 export const RESEARCH_FAIL = "This comparison did not finish: the research run failed. Nothing is shown.";

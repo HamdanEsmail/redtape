@@ -66,6 +66,27 @@ describe("firstAmount and amountOnPage", () => {
     expect(firstAmount("100 Singapore dollars")).toEqual({ text: "100", currency: "SGD" });
     expect(firstAmount("100 Singapore dollar")).toEqual({ text: "100", currency: "SGD" });
   });
+
+  it("takes the number beside the currency, not a form number, a class or a date", () => {
+    expect(firstAmount("Form 1023 filing fee: USD 600")).toEqual({ text: "600", currency: "USD" });
+    expect(firstAmount("Class 3 licence: SGD 150")).toEqual({ text: "150", currency: "SGD" });
+    expect(firstAmount("From 1 January 2026: AED 500")).toEqual({ text: "500", currency: "AED" });
+    expect(firstAmount("Schedule 2 fee: GBP 40")).toEqual({ text: "40", currency: "GBP" });
+    expect(firstAmount("2 inspections at £75 each")).toEqual({ text: "75", currency: "GBP" });
+    expect(firstAmount("Tier 2: 1,500 dirhams a year")).toEqual({ text: "1500", currency: "AED" });
+  });
+
+  it("gives the amount the currency written beside it", () => {
+    expect(firstAmount("US$50")).toEqual({ text: "50", currency: "USD" });
+    expect(firstAmount("S$150 (about USD 110)")).toEqual({ text: "150", currency: "SGD" });
+    expect(firstAmount("GBP 40, or 50 euros by post")).toEqual({ text: "40", currency: "GBP" });
+  });
+
+  it("falls back to a bare number only when the fee names no currency", () => {
+    expect(firstAmount("300")).toEqual({ text: "300", currency: null });
+    expect(firstAmount("Section 12 sets the fee in dirhams")).toBeNull();
+    expect(firstAmount("free")).toBeNull();
+  });
 });
 
 describe("checkItem", () => {
@@ -92,6 +113,14 @@ describe("checkItem", () => {
       kind: "found_fee_missing",
       text: "The sentence is on the page; the fee is not. Confirm the fee.",
     });
+  });
+
+  it("does not take a form number on the page for the fee", () => {
+    const quote = "Organisations file Form 1023 to apply for recognition of exemption under section 501.";
+    const page = `${quote} The user fee is $275.`;
+    expect(checkItem({ quote, fee: "Form 1023 filing fee: USD 600", url: "https://x.example" }, { ok: true, text: page }, date).kind).toBe(
+      "found_fee_missing",
+    );
   });
 
   it("is not confirmed when the page did not show the sentence", () => {

@@ -65,4 +65,9 @@ describe("visitor hash", () => {
     expect(a).not.toContain("203.0.113.7");
     expect(await visitorHash(env, undefined)).toBe(await visitorHash(env, ""));
   });
+
+  it("is not made at all when the salt is not set, so an address is never hashed bare", async () => {
+    expect(await visitorHash({ ...env, WEBHOOK_SECRET: "" }, "203.0.113.7")).toBeNull();
+    expect(await visitorHash({ ...env, WEBHOOK_SECRET: undefined as unknown as string }, "203.0.113.7")).toBeNull();
+  });
 });

@@ -50,6 +50,19 @@ The sheet, saved comparisons, how it works, API, about and not-found sit behind 
 
 CSV tests match quoting of a guarded carriage return, the byte-order mark as bytes, and 409 with a running state. Inner-page headings sit at the top left. The sheet puts each place on its own line and prints each address once. API examples use Work Sans and wrap. An unknown comparison and an unknown page have their own sentences. Long official addresses wrap inside the column on a phone. The social image is the first screen at 1200 by 630.
 
+## Pass over the engine (fourth), 10 November
+
+Six faults, each with a test that failed first.
+
+- **A research start is sent once.** Before, a start whose answer left the outcome open (a 5xx, a dropped connection, a 2xx with no run id) cleared its claim and was sent again every minute, each one a new deep run. Now only a plain refusal clears the claim: a 429 is tried again for up to 20 minutes, any other 4xx fails the comparison with nothing booked. Anything else keeps the claim; after 5 minutes the comparison fails and the run is booked, because TinyFish may have accepted it. The wallet is read and stored before the call, so that booking has something to stand on.
+- **What a run cost.** An unchanged wallet no longer makes every run free: only Redtape's first two runs of a UTC day. A later run is booked at $2 until the wallet, read ten minutes on, shows less. The balance read before the next run starts settles the run before it, since after that the wallet holds both. A balance down by more than $2 brings a run up to $2 instead of being ignored. A wallet that cannot be read leaves the run unsettled, to be read again.
+- **A status word the reader does not know** counts as still running. Only FAILED, CANCELLED, TIMED_OUT, or COMPLETED with no report, fail a comparison; the 25-minute limit ends the rest.
+- **A fee's amount** is the first number written beside a currency. "Form 1023 filing fee: USD 600" is 600, not 1023; "From 1 January 2026: AED 500" is 500, not 1. "US$50" is US dollars, not Singapore dollars. A fee that names no currency gives its first number.
+- **Finding has a deadline.** A search that keeps failing is given up 10 minutes after the comparison began, and the research goes on without preferred sites. The slot's clock starts again when the research start is sent, so it is held for the whole run.
+- **The visitor hash needs its salt.** With `WEBHOOK_SECRET` not set, no hash is made and no public comparison starts: "New comparisons are closed for the moment. Saved comparisons still open."
+
+Also: with no TinyFish key, `advance` moves nothing and fails nothing. 221 tests.
+
 ## Paid TinyFish calls
 
 None. Tests intercept every outbound request. There is no `.dev.vars` in this project.

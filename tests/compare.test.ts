@@ -3,7 +3,7 @@
 import { env } from "cloudflare:workers";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { recordSpend, totalSpend } from "../src/core/spend";
-import { advance } from "../src/compare/advance";
+import { advance, settleRunCost } from "../src/compare/advance";
 import { startAdminComparison } from "../src/compare/create";
 import { committedSpend } from "../src/compare/money";
 import { readSlot } from "../src/compare/slot";
@@ -36,6 +36,11 @@ type Fake = {
   placeSearches: number;
   pages: Record<string, string>;
   startStatus: number;
+  /** When set, the start call is answered by this instead. */
+  startReply: (() => Response) | null;
+  balance: string;
+  walletStatus: number;
+  searchStatus: number;
 };
 
 function fakeTinyFish(over: Partial<Fake> = {}): Fake {
@@ -47,12 +52,19 @@ function fakeTinyFish(over: Partial<Fake> = {}): Fake {
     placeSearches: 0,
     pages: { ...PAGES },
     startStatus: 200,
+    startReply: null,
+    balance: "20.00",
+    walletStatus: 200,
+    searchStatus: 200,
     ...over,
   };
   fetchMock.intercept({
     method: "GET",
     url: WALLET,
-    reply: { json: { available_balance: "20.00", currency: "USD" } },
+    reply: () =>
+      tf.walletStatus !== 200
+        ? Response.json({ error: { code: "SERVICE_BUSY" } }, { status: tf.walletStatus })
+        : Response.json({ available_balance: tf.balance, currency: "USD" }),
     times: Infinity,
   });
   fetchMock.intercept({
@@ -60,6 +72,7 @@ function fakeTinyFish(over: Partial<Fake> = {}): Fake {
     url: START,
     reply: () => {
       tf.starts += 1;
+      if (tf.startReply !== null) return tf.startReply();
       if (tf.startStatus !== 200) {
         return Response.json({ error: { code: "FORBIDDEN" } }, { status: tf.startStatus });
       }
@@ -91,6 +104,7 @@ function fakeTinyFish(over: Partial<Fake> = {}): Fake {
     reply: (req) => {
       const q = new URL(req.url).searchParams.get("query") ?? "";
       if (q.includes("official government business licence")) tf.placeSearches += 1;
+      if (tf.searchStatus !== 200) return Response.json({ error: { code: "SERVICE_BUSY" } }, { status: tf.searchStatus });
       const results: { url: string; title: string; snippet: string }[] = [];
       if (q.includes("Port Aldren")) results.push({ url: "https://licensing.aldren.gov.example/", title: "Aldren", snippet: "" });
       if (q.includes("Northhaven")) results.push({ url: "https://permits.northhaven.gov.example/", title: "Northhaven", snippet: "" });
@@ -376,6 +390,25 @@ describe("POST /api/comparisons", () => {
     expect((await env.DB.prepare("SELECT COUNT(*) AS n FROM public_use").first<{ n: number }>())?.n).toBe(0);
   });
 
+  it("starts nothing when the visitor salt is not set, and says new comparisons are closed", async () => {
+    const res = await callWorker(
+      "/api/comparisons",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json", "CF-Connecting-IP": "203.0.113.1" },
+        body: JSON.stringify({ activity: ACTIVITY, places: PLACES }),
+      },
+      { WEBHOOK_SECRET: "" },
+    );
+    expect(res.status).toBe(503);
+    expect(await res.json()).toEqual({
+      error: "closed",
+      message: "New comparisons are closed for the moment. Saved comparisons still open.",
+    });
+    expect((await env.DB.prepare("SELECT COUNT(*) AS n FROM comparisons").first<{ n: number }>())?.n).toBe(0);
+    expect((await env.DB.prepare("SELECT COUNT(*) AS n FROM public_use").first<{ n: number }>())?.n).toBe(0);
+  });
+
   it("answers 404 while the site is switched off, and 202 when it is on", async () => {
     const off = await callWorker(
       "/api/comparisons",
@@ -546,7 +579,7 @@ describe("finding and polling are claimed", () => {
 });
 
 describe("a start that may have reached TinyFish is not started again", () => {
-  it("fails as research_failed when a start claim is older than the limit and has no run id, and books nothing", async () => {
+  it("fails as research_failed when a start claim is older than the limit and has no run id, and books the run", async () => {
     tf.startStatus = 429;
     const id = await newComparison();
     await toResearching(id);
@@ -556,13 +589,14 @@ describe("a start that may have reached TinyFish is not started again", () => {
     const failed = await advance(env, id, at(2));
     expect(failed.state).toBe("failed");
     expect(tf.starts).toBe(1);
-    expect(await researchRunRows(id)).toBe(0);
+    expect(await researchRunRows(id)).toBe(1);
     const row = await env.DB.prepare("SELECT cost_basis, research_run_id, failed_reason FROM comparisons WHERE id = ?").bind(id).first<{
       cost_basis: string | null;
       research_run_id: string | null;
       failed_reason: string | null;
     }>();
-    expect(row).toMatchObject({ cost_basis: "none", research_run_id: null, failed_reason: "research_failed" });
+    expect(row).toMatchObject({ research_run_id: null, failed_reason: "research_failed" });
+    expect(row?.cost_basis).toMatch(/^(wallet|card|free)$/);
   });
 
   it("tries again when the start call itself answers 429", async () => {
@@ -579,5 +613,218 @@ describe("a start that may have reached TinyFish is not started again", () => {
       state: string;
     }>();
     expect(row).toMatchObject({ research_run_id: RUN_ID, state: "researching" });
+  });
+});
+
+describe("a research start whose outcome is not known is never sent again", () => {
+  async function expectOneStartThenBooked(id: string): Promise<void> {
+    await toResearching(id);
+    expect(tf.starts).toBe(1);
+    for (let m = 1; m <= 4; m++) expect((await advance(env, id, at(60 * m))).state).toBe("researching");
+    expect((await advance(env, id, at(6 * 60 + 2))).state).toBe("failed");
+    expect(tf.starts).toBe(1);
+    const row = await env.DB.prepare("SELECT failed_reason, research_run_id, cost_basis, run_booked_at FROM comparisons WHERE id = ?").bind(id).first<{
+      failed_reason: string | null;
+      research_run_id: string | null;
+      cost_basis: string | null;
+      run_booked_at: string | null;
+    }>();
+    expect(row?.failed_reason).toBe("research_failed");
+    expect(row?.research_run_id).toBeNull();
+    expect(row?.cost_basis).toMatch(/^(wallet|card|free)$/);
+    expect(row?.run_booked_at).not.toBeNull();
+    expect(await researchRunRows(id)).toBe(1);
+    expect((await readSlot(env.DB))?.comparison_id).toBeNull();
+  }
+
+  it("when the answer is a 2xx with no run id", async () => {
+    tf.startReply = () => Response.json({ id: "a-run-under-another-name" });
+    await expectOneStartThenBooked(await newComparison());
+  });
+
+  it("when the connection drops after the request was sent", async () => {
+    tf.startReply = () => {
+      throw new TypeError("Network connection lost");
+    };
+    await expectOneStartThenBooked(await newComparison());
+  });
+
+  it("when the answer is a 504", async () => {
+    tf.startStatus = 504;
+    await expectOneStartThenBooked(await newComparison());
+  });
+
+  it("when the answer is a 2xx that is not JSON", async () => {
+    tf.startReply = () => new Response("<html>gateway</html>", { status: 200 });
+    await expectOneStartThenBooked(await newComparison());
+  });
+
+  it("books what the wallet shows was charged, from the balance read before the call", async () => {
+    tf.startReply = () => {
+      tf.balance = "18.00";
+      throw new TypeError("Network connection lost");
+    };
+    const id = await newComparison();
+    await toResearching(id);
+    expect((await advance(env, id, at(6 * 60 + 2))).state).toBe("failed");
+    const row = await env.DB.prepare("SELECT wallet_before_usd, cost_usd, cost_basis FROM comparisons WHERE id = ?").bind(id).first();
+    expect(row).toEqual({ wallet_before_usd: 20, cost_usd: 2, cost_basis: "wallet" });
+    expect(await totalSpend(env.DB)).toBe(2);
+  });
+});
+
+describe("a run status the reader does not know", () => {
+  it("is treated as still running, and the report is read when the run completes", async () => {
+    const id = await newComparison();
+    tf.status = "PENDING";
+    await toResearching(id);
+    expect((await advance(env, id, at(60))).state).toBe("researching");
+    expect((await readSlot(env.DB))?.comparison_id).toBe(id);
+    expect(await researchRunRows(id)).toBe(0);
+    tf.status = "COMPLETED";
+    expect((await advance(env, id, at(120))).state).toBe("checking");
+  });
+
+  it("still ends at 25 minutes when it never changes", async () => {
+    const id = await newComparison();
+    tf.status = "PROCESSING";
+    await toResearching(id);
+    expect((await advance(env, id, at(60))).state).toBe("researching");
+    expect((await advance(env, id, at(26 * 60))).state).toBe("failed");
+    const row = await env.DB.prepare("SELECT failed_reason FROM comparisons WHERE id = ?").bind(id).first<{ failed_reason: string }>();
+    expect(row?.failed_reason).toBe("timeout");
+  });
+});
+
+describe("finding and starting have a deadline", () => {
+  it("goes on without preferred sites when the finding search has failed for ten minutes", async () => {
+    tf.searchStatus = 503;
+    const id = await newComparison();
+    expect((await advance(env, id, at(0))).state).toBe("finding");
+    await expect(advance(env, id, at(1))).rejects.toThrow();
+    await expect(advance(env, id, at(6 * 60))).rejects.toThrow();
+    const late = await advance(env, id, at(10 * 60 + 1));
+    expect(late.state).toBe("researching");
+    expect(tf.starts).toBe(1);
+    const sites = await env.DB.prepare("SELECT COUNT(*) AS n FROM place_sites WHERE comparison_id = ?").bind(id).first<{ n: number }>();
+    expect(sites?.n).toBe(0);
+    const startCall = fetchMock.calls.find((c) => c.url === START);
+    expect((startCall?.body as { domain_filter?: unknown }).domain_filter).toBeUndefined();
+  });
+
+  it("fails with nothing booked when the start is refused with 429 for twenty minutes", async () => {
+    tf.startStatus = 429;
+    const id = await newComparison();
+    await toResearching(id);
+    let state = "researching";
+    for (let m = 1; m <= 21 && state === "researching"; m++) state = (await advance(env, id, at(60 * m))).state;
+    expect(state).toBe("failed");
+    expect(tf.starts).toBeGreaterThan(1);
+    expect(tf.starts).toBeLessThanOrEqual(21);
+    expect(await researchRunRows(id)).toBe(0);
+    const row = await env.DB.prepare("SELECT failed_reason, cost_basis, cost_usd FROM comparisons WHERE id = ?").bind(id).first();
+    expect(row).toEqual({ failed_reason: "research_failed", cost_basis: "none", cost_usd: 0 });
+    expect((await readSlot(env.DB))?.comparison_id).toBeNull();
+  });
+
+  it("starts the slot's clock again when the research start is sent", async () => {
+    const id = await newComparison();
+    tf.status = "RUNNING";
+    await advance(env, id, at(0));
+    expect((await readSlot(env.DB))?.since).toBe(at(0).toISOString());
+    await advance(env, id, at(90));
+    expect(tf.starts).toBe(1);
+    expect((await readSlot(env.DB))?.since).toBe(at(90).toISOString());
+  });
+});
+
+describe("what a run cost", () => {
+  /** Runs one comparison from queued to checking, starting `t` seconds after T0. */
+  async function toChecking(id: string, t: number): Promise<void> {
+    expect((await advance(env, id, at(t))).state).toBe("finding");
+    expect((await advance(env, id, at(t + 1))).state).toBe("researching");
+    expect((await advance(env, id, at(t + 60))).state).toBe("checking");
+  }
+
+  const costOf = (id: string) =>
+    env.DB.prepare("SELECT cost_usd, cost_basis, cost_settled_at IS NOT NULL AS settled FROM comparisons WHERE id = ?").bind(id).first();
+
+  /** Three runs on one UTC day with the wallet never moving: the third is past the two free ones. */
+  async function threeRuns(): Promise<[string, string, string]> {
+    const a = await newComparison();
+    await toChecking(a, 0);
+    const b = await newComparison(at(100));
+    await toChecking(b, 100);
+    const c = await newComparison(at(200));
+    await toChecking(c, 200);
+    return [a, b, c];
+  }
+
+  it("books the third run of a UTC day at the rate card when the wallet has not moved yet", async () => {
+    const [a, b, c] = await threeRuns();
+    expect(await costOf(a)).toMatchObject({ cost_usd: 0, cost_basis: "free" });
+    expect(await costOf(b)).toMatchObject({ cost_usd: 0, cost_basis: "free" });
+    expect(await costOf(c)).toMatchObject({ cost_usd: 2, cost_basis: "card", settled: 0 });
+    expect(await totalSpend(env.DB)).toBe(2);
+  });
+
+  it("lowers a rate-card booking to what the wallet shows ten minutes later", async () => {
+    const [, , c] = await threeRuns();
+    await settleRunCost(env, at(260 + 11 * 60));
+    expect(await costOf(c)).toMatchObject({ cost_usd: 0, cost_basis: "free", settled: 1 });
+    expect(await totalSpend(env.DB)).toBe(0);
+  });
+
+  it("keeps the rate card when the next run starts before the ten minutes are up", async () => {
+    const [, , c] = await threeRuns();
+    const d = await newComparison(at(300));
+    await toChecking(d, 300);
+    expect(await costOf(c)).toMatchObject({ cost_usd: 2, cost_basis: "card", settled: 1 });
+    expect(await costOf(d)).toMatchObject({ cost_usd: 2, cost_basis: "card" });
+  });
+
+  it("books a charge the wallet shows ten minutes after the run ended", async () => {
+    const id = await newComparison();
+    await toChecking(id, 0);
+    expect(await costOf(id)).toMatchObject({ cost_usd: 0, cost_basis: "free", settled: 0 });
+    tf.balance = "18.00";
+    await settleRunCost(env, at(60 + 11 * 60));
+    expect(await costOf(id)).toMatchObject({ cost_usd: 2, cost_basis: "wallet", settled: 1 });
+    expect(await totalSpend(env.DB)).toBe(2);
+  });
+
+  it("raises a run booked as free to the rate card when the wallet later moved by more than a run costs", async () => {
+    const id = await newComparison();
+    await toChecking(id, 0);
+    tf.balance = "17.95";
+    await settleRunCost(env, at(60 + 11 * 60));
+    expect(await costOf(id)).toMatchObject({ cost_usd: 2, cost_basis: "card", settled: 1 });
+    expect(await totalSpend(env.DB)).toBe(2);
+  });
+
+  it("leaves a run unsettled when the wallet cannot be read, and settles it at the next read", async () => {
+    const id = await newComparison();
+    await toChecking(id, 0);
+    tf.walletStatus = 503;
+    await settleRunCost(env, at(60 + 11 * 60));
+    expect(await costOf(id)).toMatchObject({ cost_usd: 0, cost_basis: "free", settled: 0 });
+    tf.walletStatus = 200;
+    tf.balance = "18.00";
+    await settleRunCost(env, at(60 + 12 * 60));
+    expect(await costOf(id)).toMatchObject({ cost_usd: 2, cost_basis: "wallet", settled: 1 });
+  });
+
+  it("settles the run before it from the wallet read at the next run's start", async () => {
+    const a = await newComparison();
+    await toChecking(a, 0);
+    tf.balance = "18.00";
+    const b = await newComparison(at(100));
+    await toChecking(b, 100);
+    expect(await costOf(a)).toMatchObject({ cost_usd: 2, cost_basis: "wallet", settled: 1 });
+    expect(await costOf(b)).toMatchObject({ cost_usd: 0, cost_basis: "free" });
+    await settleRunCost(env, at(160 + 11 * 60));
+    expect(await costOf(a)).toMatchObject({ cost_usd: 2, cost_basis: "wallet" });
+    expect(await costOf(b)).toMatchObject({ cost_usd: 0, cost_basis: "free", settled: 1 });
+    expect(await totalSpend(env.DB)).toBe(2);
   });
 });

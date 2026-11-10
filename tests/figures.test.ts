@@ -59,6 +59,11 @@ describe("figuresForPlace", () => {
     expect(f.gaps).toBe(1);
   });
 
+  it("adds the amounts beside the currency, not the numbers before them", () => {
+    const f = figuresForPlace("Port Aldren", [item({ fee: "Form 1023 filing fee: USD 600" }), item({ fee: "USD 50" })]);
+    expect(f.feesSum).toBe("at least USD 650");
+  });
+
   it("lists mixed currencies instead of adding them", () => {
     const f = figuresForPlace("Eastmere", [item({ fee: "USD 300" }), item({ fee: "GBP 100" })]);
     expect(f.feesSum).toBe(null);

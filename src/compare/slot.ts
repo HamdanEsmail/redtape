@@ -11,6 +11,12 @@ export async function takeSlot(db: D1Database, comparisonId: string, now: Date):
   return r.meta.changes === 1;
 }
 
+/** Starts the holder's clock again. Called when its research start is sent, so the slot is held
+ *  for the whole run however long finding the sites took. */
+export async function renewSlot(db: D1Database, comparisonId: string, now: Date): Promise<void> {
+  await db.prepare("UPDATE run_slot SET since = ? WHERE id = 1 AND comparison_id = ?").bind(now.toISOString(), comparisonId).run();
+}
+
 export async function releaseSlot(db: D1Database, comparisonId: string): Promise<boolean> {
   const r = await db.prepare("UPDATE run_slot SET comparison_id = NULL, since = NULL WHERE id = 1 AND comparison_id = ?").bind(comparisonId).run();
   return r.meta.changes === 1;

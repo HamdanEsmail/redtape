@@ -48,10 +48,14 @@ States: `queued` → `finding` → `researching` → `checking` → `ready`, or 
 1. **queued.** The activity and the three places are stored. One comparison runs at a time; the next waits.
 2. **finding.** One TinySearch per place ("<place> official government business licence <activity>"). The hosts
    of the results that are government domains (section 6) are kept as that place's preferred sites, at most 6
-   per place. A place with none still goes on: the research is told to use official sources in any case.
+   per place. A place with none still goes on: the research is told to use official sources in any case. A
+   search that keeps failing is given up after 10 minutes, and the research goes on without preferred sites.
 3. **researching.** One TinyResearch run, `deep`, started with the question of section 4 and the preferred
    sites as `domain_filter` (prefer, never require). The run id is stored before anything else. It is read once
-   a minute. More than 25 minutes without an end: `failed`, "TinyResearch took too long".
+   a minute. More than 25 minutes without an end: `failed`, "TinyResearch took too long". A status word the
+   reader does not know counts as still running. The start is sent once: a refusal for now (a 429) is tried
+   again for up to 20 minutes, and an answer that leaves the outcome open (a dropped connection, a 5xx, no run
+   id) is never sent again: after 5 minutes the comparison is `failed` and the run is booked (section 11).
 4. **checking.** The report is read into items (section 4). Each item's official page is read again with
    TinyFetch and its sentence looked for (section 5). Items are checked a few at a time, so no step is long.
 5. **ready.** The totals and the verdict are worked out (section 7) and stored.
@@ -121,8 +125,10 @@ Text is compared after lower-casing, removing punctuation and collapsing spaces.
 run of its words, in order, is on the page that is at least 8 words long (or the whole quote, when shorter) and
 covers at least 60% of the quote's words.
 
-When the item states a fee, its first amount is also looked for on the page as digits with their separators
-("300", "1,000", "12.34").
+When the item states a fee, its amount is also looked for on the page as digits with their separators
+("300", "1,000", "12.34"). The amount is the first number written beside a currency, so a form number, a class
+or a date in front of it is never taken for money: "Form 1023 filing fee: USD 600" is 600. A fee that names no
+currency gives its first number.
 
 | Result | Shown as |
 |---|---|
@@ -153,7 +159,7 @@ For each place, from its items:
 
 - **Requirements:** items whose `Required` starts with yes or depends.
 - **Fees stated:** how many items state a fee, of how many.
-- **Stated fees, added up:** the first amount of each stated fee, added when they share a currency, shown as
+- **Stated fees, added up:** the amount of each stated fee (as in section 5), added when they share a currency, shown as
   "at least <sum>" with "<n> fees not stated" beside it. Mixed currencies inside one place: no sum, the list.
   Currencies are never converted between places; the page says so.
 - **Longest stated wait:** each stated time turned into days where it can be (hours, days, working days, weeks,
@@ -200,11 +206,16 @@ database, are ever read or deleted.
 
 - One comparison in progress at a time. 2 new comparisons a day in all from visitors, 1 per visitor a day.
 - A TinyResearch run costs $2 once the account's 2 free runs of the UTC day are used. The ledger books what the
-  wallet shows was charged, read again some minutes after the run ends.
+  wallet shows was charged, read again some minutes after the run ends. A run can be charged after it ends, so
+  an unchanged wallet makes a run free only for Redtape's first two runs of the day; a later run is booked at
+  $2 until the wallet, read ten minutes on, shows less. The wallet is one balance for every run on the account:
+  a read counts for a run only while no later run has started (the read before the next start is the last one
+  used), and a balance down by more than $2 only ever brings a run up to $2. A wallet that cannot be read
+  leaves the run to be read again.
 - Spend stop at $8: no new comparison starts. Stored comparisons always open. Fetch and Search are free.
 - A visitor's comparison is kept 7 days; the saved demos stay.
 - The activity is at most 200 characters, each place at most 80. A visitor is known only by a salted hash of
-  their address.
+  their address. The salt is a secret of the deployment; without it no hash is made and no comparison starts.
 
 ## 12. Screens
 
@@ -232,6 +243,7 @@ Honest states, in these words:
 | Daily limit reached | "Today's 2 new comparisons are used. Saved comparisons still open." |
 | Visitor's limit reached | "You have started today's comparison from here already. Saved comparisons still open." |
 | Spend stop reached | "New comparisons are closed: this demo has spent its budget. Saved comparisons still open." |
+| The visitor cannot be counted (the salt is not set) | "New comparisons are closed for the moment. Saved comparisons still open." |
 
 Every page that shows a comparison carries: "A starting point to confirm with a lawyer, not legal advice."
 

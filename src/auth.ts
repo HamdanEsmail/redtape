@@ -27,8 +27,11 @@ export function isAdmin(c: Context<{ Bindings: Env }>): boolean {
 }
 
 /** A visitor is known only by this: SHA-256 (hex) of `CF-Connecting-IP` (or "unknown"), salted
- *  with WEBHOOK_SECRET. The address itself is never stored. */
-export async function visitorHash(env: Env, ip: string | undefined): Promise<string> {
+ *  with WEBHOOK_SECRET. The address itself is never stored. Null when the secret is not set: an
+ *  address hashed without a salt could be found again by trying every address, so none is made
+ *  and the caller starts nothing. */
+export async function visitorHash(env: Env, ip: string | undefined): Promise<string | null> {
+  if (!env.WEBHOOK_SECRET) return null;
   const bytes = encoder.encode(`${env.WEBHOOK_SECRET}|${ip === undefined || ip === "" ? "unknown" : ip}`);
   const digest = await crypto.subtle.digest("SHA-256", bytes);
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");

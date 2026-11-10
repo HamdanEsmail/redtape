@@ -3,18 +3,27 @@
 //
 //   queued      -> finding      the run slot is free and this is the oldest queued comparison.
 //   finding     -> researching  one TinySearch per place, claimed first; government hosts kept,
-//                               at most 6 each.
+//                               at most 6 each. After 10 minutes of failed searches the research
+//                               goes on without preferred sites.
 //   researching -> checking     the TinyResearch run is started (id stored before the first poll)
 //                               then read once a minute (each poll claimed); more than 25 minutes
 //                               without an end fails. A comparison that started a run is booked
 //                               when it ends, including when it fails.
 //   checking    -> ready        each item's official page is read, at most 4 per call; then a
 //                               fee-lead search for items whose fee is not stated, at most 6.
+//
+// A research start is sent once. Only a plain refusal (a 4xx) clears its claim: a 429 is tried
+// again for up to 20 minutes, any other 4xx fails the comparison with nothing booked. An answer
+// that leaves the outcome open (a dropped connection, a 5xx, a 2xx without a run id) keeps the
+// claim, so the start is never sent twice; the comparison then fails and the run is booked.
 import {
   ADVANCE_BUDGET_MS,
   CHECKS_PER_ADVANCE,
   FEE_LEADS_PER_ADVANCE,
   FIND_CLAIM_STALE_MINUTES,
+  FINDING_DEADLINE_MINUTES,
+  FREE_RUNS_PER_DAY,
+  LOST_START_MINUTES,
   READ_ATTEMPTS,
   READ_RETRY_AFTER_SECONDS,
   RESEARCH_BUDGET_USD,
@@ -22,6 +31,7 @@ import {
   RESEARCH_TIMEOUT_MINUTES,
   SETTLE_AFTER_MINUTES,
   SITES_PER_PLACE,
+  START_DEADLINE_MINUTES,
 } from "../core/limits";
 import { isGovernmentDomain } from "../core/official";
 import { researchMinutes } from "../core/dates";
@@ -38,7 +48,7 @@ import { searchWeb } from "../tinyfish/search";
 import { readBalance } from "../tinyfish/wallet";
 import { figuresForPlace } from "./figures";
 import { spendStopReached } from "./money";
-import { releaseSlot, takeSlot } from "./slot";
+import { releaseSlot, renewSlot, takeSlot } from "./slot";
 import {
   allItems,
   claimItem,
@@ -57,22 +67,34 @@ import {
 export type AdvanceResult = { state: string; did: string[] };
 
 const minutesAgo = (now: Date, iso: string | null) => (iso === null ? Infinity : (now.getTime() - Date.parse(iso)) / 60_000);
-const LOST_START_MINUTES = 5;
-const RETRY_LATER = new Set([408, 409, 425, 429, 500, 502, 503, 504]);
+const round6 = (usd: number) => Math.round(usd * 1e6) / 1e6;
+const EPS = 1e-9;
+/** Refusals that say "not now": no run was created, and the start may be sent again. */
+const TRY_LATER = new Set([408, 409, 425, 429]);
 
+/** What a failed start call says about the run. "later" and "refused": TinyFish said no, so no run
+ *  exists. "unknown": the request may have been accepted, so a run may exist. */
+function startOutcome(err: unknown): "later" | "refused" | "unknown" {
+  if (!(err instanceof TinyFishError)) return "unknown";
+  if (TRY_LATER.has(err.status)) return "later";
+  return err.status >= 400 && err.status < 500 ? "refused" : "unknown";
+}
+
+/** `s` must be the row as stored: a run may exist when it holds a run id, or a start claim. */
 async function fail(env: Env, s: ComparisonRow, from: string, reason: string, now: Date): Promise<boolean> {
   const r = await env.DB.prepare(
     `UPDATE comparisons SET state = 'failed', failed_reason = ?, finished_at = ?,
-       cost_basis = COALESCE(cost_basis, CASE WHEN research_run_id IS NULL THEN 'none' ELSE cost_basis END),
-       cost_usd = COALESCE(cost_usd, CASE WHEN research_run_id IS NULL THEN 0 ELSE cost_usd END)
+       cost_basis = COALESCE(cost_basis, CASE WHEN research_run_id IS NULL AND research_started_at IS NULL THEN 'none' ELSE cost_basis END),
+       cost_usd = COALESCE(cost_usd, CASE WHEN research_run_id IS NULL AND research_started_at IS NULL THEN 0 ELSE cost_usd END)
      WHERE id = ? AND state = ?`,
   )
     .bind(reason, now.toISOString(), s.id, from)
     .run();
   await releaseSlot(env.DB, s.id);
   if (r.meta.changes !== 1) return false;
-  // A comparison that started a research run is booked when it ends, including when it fails.
-  if (s.research_run_id !== null && s.origin !== "import") await bookRun(env, s, now);
+  // A comparison that started a research run, or may have, is booked when it ends, including when it fails.
+  const mayHaveRun = s.research_run_id !== null || s.research_started_at !== null;
+  if (mayHaveRun && s.origin !== "import") await bookRun(env, s, now);
   return true;
 }
 
@@ -99,6 +121,12 @@ async function start(env: Env, s: ComparisonRow, now: Date, did: string[]): Prom
 }
 
 async function find(env: Env, s: ComparisonRow, now: Date, did: string[]): Promise<void> {
+  if (s.started_at !== null && minutesAgo(now, s.started_at) > FINDING_DEADLINE_MINUTES) {
+    // The search has failed for too long. Preferred sites are a help, not a need: go on without them.
+    const on = await env.DB.prepare("UPDATE comparisons SET state = 'researching' WHERE id = ? AND state = 'finding'").bind(s.id).run();
+    if (on.meta.changes === 1) did.push("researching:no_sites");
+    return;
+  }
   const staleBefore = new Date(now.getTime() - FIND_CLAIM_STALE_MINUTES * 60_000).toISOString();
   const claimed = await env.DB.prepare(
     `UPDATE comparisons SET finding_claimed_at = ? WHERE id = ? AND state = 'finding'
@@ -148,14 +176,23 @@ async function bookRun(env: Env, s: ComparisonRow, now: Date): Promise<void> {
   } catch {
     after = null;
   }
-  const diff =
-    s.wallet_before_usd !== null && after !== null ? Math.round((s.wallet_before_usd - after) * 1e6) / 1e6 : null;
+  const diff = s.wallet_before_usd !== null && after !== null ? round6(s.wallet_before_usd - after) : null;
+  // The rate card: the first runs of a UTC day are free, the rest cost the budget. A run can be
+  // charged after it ends, so an unchanged wallet makes a run free only when the rate card agrees.
+  const startedAt = s.research_started_at ?? now.toISOString();
+  const today = await env.DB.prepare(
+    `SELECT COUNT(*) AS n FROM comparisons WHERE origin <> 'import' AND research_started_at IS NOT NULL
+       AND substr(research_started_at, 1, 10) = ? AND research_started_at <= ?`,
+  )
+    .bind(startedAt.slice(0, 10), startedAt)
+    .first<{ n: number }>();
+  const rateCard = (today?.n ?? 1) <= FREE_RUNS_PER_DAY ? 0 : RESEARCH_BUDGET_USD;
   let cost: number;
   let basis: string;
   if (diff === 0) {
-    cost = 0;
-    basis = "free";
-  } else if (diff !== null && diff > 0 && diff <= RESEARCH_BUDGET_USD + 1e-9) {
+    cost = rateCard;
+    basis = rateCard === 0 ? "free" : "card";
+  } else if (diff !== null && diff > 0 && diff <= RESEARCH_BUDGET_USD + EPS) {
     cost = diff;
     basis = "wallet";
   } else {
@@ -172,9 +209,17 @@ async function bookRun(env: Env, s: ComparisonRow, now: Date): Promise<void> {
 }
 
 async function startRun(env: Env, s: ComparisonRow, now: Date, did: string[]): Promise<void> {
-  // A start whose claim is older than the limit and has no run id is not tried again: it may
-  // already have reached TinyFish. A 429 or 5xx from the start call itself still clears the claim.
-  if (s.research_started_at !== null && minutesAgo(now, s.research_started_at) > LOST_START_MINUTES) {
+  // A claim with no run id is a start that was sent and whose outcome is not known: the Worker
+  // stopped, the connection dropped, or the answer carried no id. It is never sent again. After
+  // the limit the comparison fails, and the run is booked because TinyFish may have accepted it.
+  if (s.research_started_at !== null) {
+    if (minutesAgo(now, s.research_started_at) > LOST_START_MINUTES && (await fail(env, s, "researching", "research_failed", now))) {
+      did.push("failed:research_failed");
+    }
+    return;
+  }
+  // A start that TinyFish has refused ever since the comparison began is given up. No run exists.
+  if (s.started_at !== null && minutesAgo(now, s.started_at) > START_DEADLINE_MINUTES) {
     if (await fail(env, s, "researching", "research_failed", now)) did.push("failed:research_failed");
     return;
   }
@@ -192,6 +237,10 @@ async function startRun(env: Env, s: ComparisonRow, now: Date, did: string[]): P
   } catch {
     before = null;
   }
+  // Stored before the call, so a start that is lost can still be booked from the wallet.
+  await env.DB.prepare("UPDATE comparisons SET wallet_before_usd = ? WHERE id = ?").bind(before, s.id).run();
+  if (before !== null) await settleEarlierRuns(env, s.id, before, now);
+  await renewSlot(env.DB, s.id, now);
   const { results: sites } = await env.DB.prepare("SELECT host FROM place_sites WHERE comparison_id = ?").bind(s.id).all<{ host: string }>();
   const domains = [...new Set(sites.map((r) => r.host))];
   try {
@@ -200,19 +249,20 @@ async function startRun(env: Env, s: ComparisonRow, now: Date, did: string[]): P
       mode: "deep",
       domainFilter: domains,
     });
-    await env.DB.prepare("UPDATE comparisons SET research_run_id = ?, wallet_before_usd = ? WHERE id = ? AND research_run_id IS NULL")
-      .bind(started.id, before, s.id)
-      .run();
+    await env.DB.prepare("UPDATE comparisons SET research_run_id = ? WHERE id = ? AND research_run_id IS NULL").bind(started.id, s.id).run();
     did.push("started");
   } catch (err) {
-    const retry = !(err instanceof TinyFishError) || RETRY_LATER.has(err.status);
-    if (retry) {
-      await env.DB.prepare("UPDATE comparisons SET research_started_at = NULL WHERE id = ? AND research_run_id IS NULL").bind(s.id).run();
-      did.push("start_later");
-    } else {
-      await fail(env, { ...s, state: "researching" }, "researching", "research_failed", now);
-      did.push("failed:research_failed");
+    const outcome = startOutcome(err);
+    if (outcome === "unknown") {
+      did.push("start_unknown");
+      return;
     }
+    await env.DB.prepare("UPDATE comparisons SET research_started_at = NULL WHERE id = ? AND research_run_id IS NULL").bind(s.id).run();
+    if (outcome === "later") {
+      did.push("start_later");
+      return;
+    }
+    if (await fail(env, { ...s, research_started_at: null }, "researching", "research_failed", now)) did.push("failed:research_failed");
   }
 }
 
@@ -239,11 +289,14 @@ async function pollRun(env: Env, s: ComparisonRow, now: Date, did: string[]): Pr
     return;
   }
   const status = run.status;
-  if (status === "QUEUED" || status === "RUNNING") return;
-  if (status !== "COMPLETED" || run.report === null) {
+  const ended = status === "FAILED" || status === "CANCELLED" || status === "TIMED_OUT";
+  if (ended || (status === "COMPLETED" && run.report === null)) {
     if (await fail(env, s, "researching", "research_failed", now)) did.push("failed:research_failed");
     return;
   }
+  // QUEUED, RUNNING, or a word this reader does not know: the run is still going. Only the
+  // 25-minute limit ends a run that never reports an end.
+  if (status !== "COMPLETED" || run.report === null) return;
   const parsed = parseReport(run.report, placesOf(s));
   if (!parsed.ok) {
     if (await fail(env, s, "researching", "layout", now)) did.push("failed:layout");
@@ -340,37 +393,97 @@ async function finishChecking(env: Env, s: ComparisonRow, now: Date, did: string
   if (r.meta.changes === 1) did.push("ready");
 }
 
+// Settling. Part of a run can be charged after it ends, so a booked cost is corrected once from a
+// later wallet read. The read only says what this run cost while no other run has been started
+// since: the wallet is one balance for every run. So a booked run is settled by whichever comes
+// first: the balance read before the next run starts, or the every-minute job ten minutes on.
+
+const UNSETTLED = "origin <> 'import' AND cost_basis IN ('wallet', 'card', 'free') AND cost_settled_at IS NULL";
+
+const bookedAt = (s: ComparisonRow) => s.run_booked_at ?? s.finished_at;
+
+/** True when another comparison's research start was sent after this run was booked. */
+async function runStartedSince(db: D1Database, s: ComparisonRow, except: string | null): Promise<boolean> {
+  const row = await db
+    .prepare("SELECT 1 AS n FROM comparisons WHERE id <> ? AND id <> ? AND origin <> 'import' AND research_started_at > ? LIMIT 1")
+    .bind(s.id, except ?? "", bookedAt(s) ?? "")
+    .first<{ n: number }>();
+  return row !== null;
+}
+
+/**
+ * Marks a booked run settled, corrected from `balance` when there is one (null: the wallet can no
+ * longer say what this run cost, and the booked cost stands). A balance further down than one run
+ * costs holds other spending, so it can only bring the cost up to the rate card. A cost booked at
+ * the rate card is lowered to what the wallet shows only when `mayLower`.
+ */
+async function settleFrom(env: Env, s: ComparisonRow, balance: number | null, mayLower: boolean, now: Date): Promise<number> {
+  let cost = s.cost_usd ?? 0;
+  let basis = s.cost_basis ?? "card";
+  if (balance !== null && s.wallet_before_usd !== null) {
+    const charged = round6(s.wallet_before_usd - balance);
+    if (charged > RESEARCH_BUDGET_USD + EPS) {
+      if (cost < RESEARCH_BUDGET_USD) {
+        cost = RESEARCH_BUDGET_USD;
+        basis = "card";
+      }
+    } else if (charged > cost + EPS) {
+      cost = charged;
+      basis = "wallet";
+    } else if (mayLower && basis === "card" && charged >= 0 && charged < cost - EPS) {
+      cost = charged;
+      basis = charged === 0 ? "free" : "wallet";
+    }
+  }
+  await env.DB.batch([
+    env.DB.prepare(
+      `UPDATE spend SET amount_usd = ?1 WHERE kind = 'research_run' AND ref = ?2
+         AND EXISTS (SELECT 1 FROM comparisons WHERE id = ?2 AND cost_settled_at IS NULL)`,
+    ).bind(cost, s.id),
+    env.DB.prepare("UPDATE comparisons SET cost_usd = ?, cost_basis = ?, cost_settled_at = ? WHERE id = ? AND cost_settled_at IS NULL").bind(
+      cost,
+      basis,
+      now.toISOString(),
+      s.id,
+    ),
+  ]);
+  return cost;
+}
+
+/** Called with the balance read just before a new run starts: the last read that holds only the
+ *  runs before it. Every booked run not yet settled is settled from it. */
+async function settleEarlierRuns(env: Env, startingId: string, balance: number, now: Date): Promise<void> {
+  const { results } = await env.DB.prepare(`SELECT * FROM comparisons WHERE id <> ? AND ${UNSETTLED} AND wallet_before_usd IS NOT NULL`)
+    .bind(startingId)
+    .all<ComparisonRow>();
+  for (const s of results) {
+    const mixed = await runStartedSince(env.DB, s, startingId);
+    const waited = minutesAgo(now, bookedAt(s)) >= SETTLE_AFTER_MINUTES;
+    await settleFrom(env, s, mixed ? null : balance, waited, now);
+  }
+}
+
+/** The every-minute job's part: settles the oldest run booked at least ten minutes ago. A wallet
+ *  that cannot be read leaves the run unsettled, to be read again on the next minute. */
 export async function settleRunCost(env: Env, now: Date = new Date()): Promise<{ id: string; cost: number } | null> {
   const due = new Date(now.getTime() - SETTLE_AFTER_MINUTES * 60_000).toISOString();
   const s = await env.DB.prepare(
-    `UPDATE comparisons SET cost_settled_at = ? WHERE id = (
-       SELECT id FROM comparisons WHERE origin <> 'import' AND cost_basis IN ('wallet', 'card', 'free') AND cost_settled_at IS NULL
-         AND COALESCE(run_booked_at, finished_at) <= ? ORDER BY COALESCE(run_booked_at, finished_at) LIMIT 1)
-     AND cost_settled_at IS NULL RETURNING *`,
+    `SELECT * FROM comparisons WHERE ${UNSETTLED} AND COALESCE(run_booked_at, finished_at) <= ?
+     ORDER BY COALESCE(run_booked_at, finished_at) LIMIT 1`,
   )
-    .bind(now.toISOString(), due)
+    .bind(due)
     .first<ComparisonRow>();
-  if (s === null || s.wallet_before_usd === null) return null;
-  const booked = s.run_booked_at ?? s.finished_at!;
-  const later = await env.DB.prepare(
-    "SELECT 1 AS later FROM comparisons WHERE id <> ? AND origin <> 'import' AND research_run_id IS NOT NULL AND started_at > ? LIMIT 1",
-  )
-    .bind(s.id, booked)
-    .first<{ later: number }>();
-  if (later !== null) return { id: s.id, cost: s.cost_usd ?? 0 };
+  if (s === null) return null;
+  if (s.wallet_before_usd === null || (await runStartedSince(env.DB, s, null))) {
+    return { id: s.id, cost: await settleFrom(env, s, null, false, now) };
+  }
   let balance: number;
   try {
     balance = await readBalance(env);
   } catch {
     return { id: s.id, cost: s.cost_usd ?? 0 };
   }
-  const total = Math.round((s.wallet_before_usd - balance) * 1e6) / 1e6;
-  if (!(total > (s.cost_usd ?? 0) && total <= RESEARCH_BUDGET_USD + 1e-9)) return { id: s.id, cost: s.cost_usd ?? 0 };
-  await env.DB.batch([
-    env.DB.prepare("UPDATE spend SET amount_usd = ? WHERE kind = 'research_run' AND ref = ?").bind(total, s.id),
-    env.DB.prepare("UPDATE comparisons SET cost_usd = ?, cost_basis = 'wallet' WHERE id = ?").bind(total, s.id),
-  ]);
-  return { id: s.id, cost: total };
+  return { id: s.id, cost: await settleFrom(env, s, balance, true, now) };
 }
 
 export async function advance(env: Env, comparisonId: string, now: Date = new Date()): Promise<AdvanceResult> {
@@ -378,6 +491,8 @@ export async function advance(env: Env, comparisonId: string, now: Date = new Da
   const did: string[] = [];
   let s = await getComparison(env.DB, comparisonId);
   if (s === null) return { state: "missing", did };
+  // Without a key nothing can be asked of TinyFish: nothing moves, and nothing is failed for it.
+  if (!env.TINYFISH_API_KEY) return { state: s.state, did: ["no_key"] };
 
   if (s.state === "queued") {
     await start(env, s, now, did);

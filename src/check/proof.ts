@@ -48,32 +48,46 @@ export function quoteFound(quote: string, page: string): boolean {
   return best >= minRun && best >= needShare;
 }
 
-const CURRENCY: [RegExp, string][] = [
-  [/S\$|SGD|Singapore dollars?/i, "SGD"],
-  [/dirhams?/i, "AED"],
-  [/USD|US\$|dollars?/i, "USD"],
-  [/GBP|£|pounds?/i, "GBP"],
-  [/AED/i, "AED"],
-  [/EUR|€|euros?/i, "EUR"],
-  [/\$/, "USD"],
+const NUMBER = "(?:\\d{1,3}(?:,\\d{3})+|\\d+)(?:\\.\\d+)?";
+/** A currency written as a code or a word. */
+const CURRENCY_WORD = "\\b(?:USD|SGD|AED|GBP|EUR|Singapore\\s+dollars?|dirhams?|dollars?|pounds?|euros?)\\b";
+/** A currency written as a sign, a code or a word. */
+const CURRENCY_MARK = `US\\$|S\\$|\\$|£|€|${CURRENCY_WORD}`;
+/** A number with its currency: the mark first ("USD 600", "£50") or a code or word after ("600 dirhams"). */
+const AMOUNT = new RegExp(`(${CURRENCY_MARK})[.:]?\\s*(${NUMBER})|(?<![\\d.,])(${NUMBER})\\s*\\(?(${CURRENCY_WORD})`, "i");
+const ANY_MARK = new RegExp(CURRENCY_MARK, "i");
+const ANY_NUMBER = new RegExp(NUMBER);
+
+const CODES: [RegExp, string][] = [
+  [/^(?:S\$|SGD|Singapore\s+dollars?)$/i, "SGD"],
+  [/^(?:US\$|USD|\$|dollars?)$/i, "USD"],
+  [/^(?:AED|dirhams?)$/i, "AED"],
+  [/^(?:GBP|£|pounds?)$/i, "GBP"],
+  [/^(?:EUR|€|euros?)$/i, "EUR"],
 ];
 
-const NUM = /(\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?/;
+function codeOf(mark: string): string | null {
+  for (const [re, code] of CODES) if (re.test(mark)) return code;
+  return null;
+}
 
-/** The first amount in a fee string, commas stripped, and a currency when the string names one. */
+/**
+ * The amount of a fee, commas stripped, with its currency. When the fee names a currency, the
+ * amount is the first number written beside one, so a form number, a class or a date before it is
+ * never taken for money ("Form 1023 filing fee: USD 600" is 600). A fee that names no currency
+ * gives its first number.
+ */
 export function firstAmount(fee: string): { text: string; currency: string | null } | null {
   if (/^not stated/i.test(fee.trim())) return null;
-  const m = fee.match(NUM);
-  if (!m) return null;
-  const text = m[0].replace(/,/g, "");
-  let currency: string | null = null;
-  for (const [re, code] of CURRENCY) {
-    if (re.test(fee)) {
-      currency = code;
-      break;
-    }
+  const beside = AMOUNT.exec(fee);
+  if (beside !== null) {
+    const number = beside[2] ?? beside[3]!;
+    const mark = beside[1] ?? beside[4]!;
+    return { text: number.replace(/,/g, ""), currency: codeOf(mark) };
   }
-  return { text, currency };
+  if (ANY_MARK.test(fee)) return null;
+  const bare = ANY_NUMBER.exec(fee);
+  return bare === null ? null : { text: bare[0].replace(/,/g, ""), currency: null };
 }
 
 function amountNumber(digits: string): number | null {

@@ -1,6 +1,7 @@
 // The TinyFish wallet. Read before a comparison's run starts and after it ends: the difference is
-// what the run cost, while Redtape is the only user of this key. Free; each read appends a $0
-// ledger row.
+// what the run cost. It is one balance for the whole account, so other spending can be in that
+// difference; the booking rules in src/compare/advance.ts allow for it. Free; each read appends a
+// $0 ledger row.
 import { PRICES } from "../core/limits";
 import type { Env } from "../env";
 import { readJson, TinyFishError, tinyfishFetch } from "./client";

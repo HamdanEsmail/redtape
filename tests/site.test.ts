@@ -379,6 +379,22 @@ describe("the public form limits", () => {
     expect(res.status).toBe(303);
     expect(res.headers.get("location")).toBe(`/comparisons/${started.id}`);
   });
+
+  it("starts nothing from the form when the visitor salt is not set, and says new comparisons are closed", async () => {
+    const res = await callWorker(
+      "/comparisons",
+      {
+        method: "POST",
+        body: new URLSearchParams({ activity: "open a mill", place1: "Port Aldren", place2: "Northhaven", place3: "Eastmere" }),
+        headers: { "content-type": "application/x-www-form-urlencoded", "CF-Connecting-IP": "203.0.113.5" },
+      },
+      { WEBHOOK_SECRET: "" },
+    );
+    expect(res.status).toBe(503);
+    expect(await res.text()).toContain("New comparisons are closed for the moment. Saved comparisons still open.");
+    expect((await env.DB.prepare("SELECT COUNT(*) AS n FROM comparisons").first<{ n: number }>())?.n).toBe(0);
+    expect((await env.DB.prepare("SELECT COUNT(*) AS n FROM public_use").first<{ n: number }>())?.n).toBe(0);
+  });
 });
 
 describe("the lawyer's sheet", () => {

@@ -4,6 +4,7 @@ import type { Env } from "../env";
 import { advanceLater } from "../compare/advance";
 import { checkInput, importComparison, startPublicComparison } from "../compare/create";
 import { listComparisons, readComparison } from "../compare/read";
+import { CLOSED } from "../compare/words";
 import { csvResponse } from "../site/csv-response";
 import { TinyFishError } from "../tinyfish/client";
 
@@ -33,6 +34,7 @@ comparisonsRouter.post("/api/comparisons", async (c) => {
   const input = checkInput(body);
   if (!input.ok) return c.json({ error: "invalid", field: input.field, message: input.message }, 400);
   const visitor = await visitorHash(c.env, c.req.header("CF-Connecting-IP"));
+  if (visitor === null) return c.json({ error: "closed", message: CLOSED }, 503);
   const started = await startPublicComparison(c.env, input.input, visitor, new Date());
   if (!started.ok) return c.json({ error: started.error, message: started.message }, started.error === "spend_stop" ? 503 : 429);
   if (!FINISHED.has(started.state)) advanceLater(c.env, c.executionCtx, started.id);

@@ -8,6 +8,7 @@ import { visitorHash } from "../auth";
 import { advanceLater } from "../compare/advance";
 import { checkInput, startPublicComparison } from "../compare/create";
 import { listComparisons, readComparison, type ComparisonView } from "../compare/read";
+import { CLOSED } from "../compare/words";
 import type { Env } from "../env";
 import { readStats } from "../handlers/stats";
 import { csvResponse } from "./csv-response";
@@ -93,6 +94,7 @@ siteRouter.post("/comparisons", async (c) => {
   const input = checkInput({ activity: typed.activity, places: [typed.place1, typed.place2, typed.place3] });
   if (!input.ok) return homePage(c, { ...typed, error: input.message }, 400);
   const visitor = await visitorHash(c.env, c.req.header("CF-Connecting-IP"));
+  if (visitor === null) return homePage(c, { ...typed, error: CLOSED }, 503);
   const started = await startPublicComparison(c.env, input.input, visitor, new Date());
   if (!started.ok) return homePage(c, { ...typed, error: started.message }, started.error === "spend_stop" ? 503 : 429);
   if (!FINISHED.has(started.state)) advanceLater(c.env, c.executionCtx, started.id);

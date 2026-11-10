@@ -15,7 +15,8 @@ export const CATEGORIES_MAX = 12;
 // --- How a comparison runs -----------------------------------------------------------------------
 
 /** One comparison runs a TinyResearch at a time; a holder of the run slot older than this no
- *  longer blocks the queue (a run takes 5 to 20 minutes; 25 minutes without an end fails it). */
+ *  longer blocks the queue (a run takes 5 to 20 minutes; 25 minutes without an end fails it). The
+ *  holder's clock starts again when its research start is sent. */
 export const RUN_SLOT_STALE_MINUTES = 35;
 /** A comparison still researching after this long is failed: "TinyResearch took too long". */
 export const RESEARCH_TIMEOUT_MINUTES = 25;
@@ -23,6 +24,14 @@ export const RESEARCH_TIMEOUT_MINUTES = 25;
 export const SITES_PER_PLACE = 6;
 /** A finding step claimed and not finished in this time can be claimed again. */
 export const FIND_CLAIM_STALE_MINUTES = 5;
+/** A finding search that has not succeeded this long after the comparison began is given up, and
+ *  the research goes on without preferred sites. */
+export const FINDING_DEADLINE_MINUTES = 10;
+/** A research start still refused this long after the comparison began fails the comparison. */
+export const START_DEADLINE_MINUTES = 20;
+/** A research start sent this long ago with no run id stored is a start whose outcome is not
+ *  known. It is never sent again: the comparison fails and the run is booked. */
+export const LOST_START_MINUTES = 5;
 /** The research run is read at most this often. */
 export const RESEARCH_POLL_EVERY_SECONDS = 55;
 /** Official pages one `advance` call reads at most. */
@@ -61,6 +70,8 @@ export const PUBLIC_COMPARISONS_PER_VISITOR_PER_DAY = 1;
 /** What a new comparison is budgeted at until its run ends and the wallet says what it cost. A
  *  TinyResearch run costs $2 after the account's 2 free runs of the UTC day. */
 export const RESEARCH_BUDGET_USD = 2;
+/** TinyResearch runs free of charge per UTC day, per account. */
+export const FREE_RUNS_PER_DAY = 2;
 /** All paid work stops when the ledger, plus the budget of every unsettled run, reaches this. */
 export const SPEND_STOP_USD = 8;
 /** Part of a run can be billed after it ends. The wallet is read again this long after the run's
