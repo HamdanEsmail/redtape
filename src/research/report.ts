@@ -80,11 +80,23 @@ function fieldSlot(key: string): "required" | "authority" | "fee" | "timeTo" | "
   return null;
 }
 
-/** "none stated" is the same gap as "not stated": it is stored as "not stated", with what follows kept.
- *  "none", "free", "no fee" and "0" stay stated values. */
-export function asGap(value: string): string {
+const SAYS_FREE = /\b(?:free|none|no (?:fee|charge|cost)|waived)\b/i;
+
+/**
+ * "none stated" is the same gap as "not stated": it is stored as "not stated", with what follows kept.
+ * "none", "free", "no fee" and "0" stay stated values.
+ *
+ * A fee or a wait (`kind` "amount") can also say "not stated" further in: "Test fee not stated (set
+ * by the schools)". When it gives no figure and does not say the thing is free, that is the same
+ * gap, stored as "not stated (<what it said>)". With a figure or a "free" it stays as written.
+ */
+export function asGap(value: string, kind: "amount" | "other" = "other"): string {
   const m = /^none\s+stated\b/i.exec(value);
-  return m === null ? value : `not stated${value.slice(m[0].length)}`;
+  if (m !== null) return `not stated${value.slice(m[0].length)}`;
+  if (kind === "amount" && !/^not stated/i.test(value) && /\bnot stated\b/i.test(value) && !/\d/.test(value) && !SAYS_FREE.test(value)) {
+    return `not stated (${value})`;
+  }
+  return value;
 }
 
 function fieldsOf(block: string): Record<string, string> {
@@ -97,7 +109,7 @@ function fieldsOf(block: string): Record<string, string> {
     const slot = fieldSlot(key);
     if (slot === null || f[slot] !== undefined) continue;
     const value = cleanValue(row[2]!);
-    f[slot] = slot === "quote" || slot === "url" ? value : asGap(value);
+    f[slot] = slot === "quote" || slot === "url" ? value : asGap(value, slot === "fee" || slot === "timeTo" ? "amount" : "other");
   }
   return f;
 }

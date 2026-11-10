@@ -66,6 +66,10 @@ import {
 
 export type AdvanceResult = { state: string; did: string[] };
 
+/** How many official pages may still be read. One call to `advance` has its own; the every-minute
+ *  job shares one across every comparison it moves, so one run stays a small piece of work. */
+export type ReadBudget = { reads: number };
+
 const minutesAgo = (now: Date, iso: string | null) => (iso === null ? Infinity : (now.getTime() - Date.parse(iso)) / 60_000);
 const round6 = (usd: number) => Math.round(usd * 1e6) / 1e6;
 const EPS = 1e-9;
@@ -327,9 +331,8 @@ async function research(env: Env, s: ComparisonRow, now: Date, did: string[]): P
   else await pollRun(env, s, now, did);
 }
 
-async function check(env: Env, s: ComparisonRow, now: Date, startedMs: number, did: string[]): Promise<void> {
-  let reads = 0;
-  while (reads < CHECKS_PER_ADVANCE && Date.now() - startedMs < ADVANCE_BUDGET_MS) {
+async function check(env: Env, s: ComparisonRow, now: Date, startedMs: number, budget: ReadBudget, did: string[]): Promise<void> {
+  while (budget.reads > 0 && Date.now() - startedMs < ADVANCE_BUDGET_MS) {
     const item = await claimItem(env.DB, s.id, now);
     if (item === null) return;
     if (item.url === null || item.url === "") {
@@ -337,7 +340,7 @@ async function check(env: Env, s: ComparisonRow, now: Date, startedMs: number, d
       did.push(`no_url:${item.name}`);
       continue;
     }
-    reads++;
+    budget.reads--;
     const page = await readOfficialPage(env, item.url);
     if (!page.ok && passingFailure(page) && item.read_attempts + 1 < READ_ATTEMPTS) {
       await readAgainLater(env.DB, item, new Date(now.getTime() + READ_RETRY_AFTER_SECONDS * 1000));
@@ -486,7 +489,12 @@ export async function settleRunCost(env: Env, now: Date = new Date()): Promise<{
   return { id: s.id, cost: await settleFrom(env, s, balance, true, now) };
 }
 
-export async function advance(env: Env, comparisonId: string, now: Date = new Date()): Promise<AdvanceResult> {
+export async function advance(
+  env: Env,
+  comparisonId: string,
+  now: Date = new Date(),
+  budget: ReadBudget = { reads: CHECKS_PER_ADVANCE },
+): Promise<AdvanceResult> {
   const startedMs = Date.now();
   const did: string[] = [];
   let s = await getComparison(env.DB, comparisonId);
@@ -507,7 +515,7 @@ export async function advance(env: Env, comparisonId: string, now: Date = new Da
     s = (await getComparison(env.DB, comparisonId))!;
   }
   if (s.state === "checking") {
-    if ((await pendingItems(env.DB, s.id)) > 0) await check(env, s, now, startedMs, did);
+    if ((await pendingItems(env.DB, s.id)) > 0) await check(env, s, now, startedMs, budget, did);
     else await searchLeads(env, s, now, startedMs, did);
     s = (await getComparison(env.DB, comparisonId))!;
     await finishChecking(env, s, now, did);

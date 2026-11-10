@@ -64,6 +64,21 @@ describe("figuresForPlace", () => {
     expect(f.feesSum).toBe("at least USD 650");
   });
 
+  it("adds fees past a fee that is free and names a course code", () => {
+    const f = figuresForPlace("Northhaven", [
+      item({ fee: "£12.34 per year" }),
+      item({ fee: "Flyer ID: free (online test); GVC/RPC-L1: not stated (set by training providers)" }),
+      item({ fee: "£524 per year (no VAT payable)" }),
+    ]);
+    expect(f.feesSum).toBe("at least GBP 536.34");
+    expect(f.feesList).toBe(null);
+  });
+
+  it("writes a sum of a thousand or more with its separator", () => {
+    const f = figuresForPlace("Eastmere", [item({ fee: "AED 5,000" }), item({ fee: "AED 1,700" })]);
+    expect(f.feesSum).toBe("at least AED 6,700");
+  });
+
   it("lists mixed currencies instead of adding them", () => {
     const f = figuresForPlace("Eastmere", [item({ fee: "USD 300" }), item({ fee: "GBP 100" })]);
     expect(f.feesSum).toBe(null);

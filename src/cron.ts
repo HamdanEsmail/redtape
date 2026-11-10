@@ -3,7 +3,8 @@
 // is watching its page, then correct one run's booked cost from a later wallet read. Each step
 // runs even when an earlier one fails.
 import type { Env } from "./env";
-import { advance, settleRunCost } from "./compare/advance";
+import { advance, settleRunCost, type ReadBudget } from "./compare/advance";
+import { CHECKS_PER_ADVANCE } from "./core/limits";
 
 const ADVANCE_PER_RUN = 5;
 
@@ -32,9 +33,11 @@ export async function runCron(env: Env, now: Date = new Date()): Promise<CronRes
   )
     .bind(ADVANCE_PER_RUN)
     .all<{ id: string }>();
+  // One run reads a few official pages in all, shared by every comparison being checked.
+  const budget: ReadBudget = { reads: CHECKS_PER_ADVANCE };
   for (const { id } of results) {
     try {
-      await advance(env, id, now);
+      await advance(env, id, now, budget);
       out.advanced++;
     } catch {
       out.failed_steps.push(`advance:${id}`);

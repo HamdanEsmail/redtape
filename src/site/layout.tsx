@@ -39,6 +39,7 @@ export function Layout(props: { title: string; description: string; refreshSecon
           {props.refreshSeconds !== undefined ? <meta http-equiv="refresh" content={String(props.refreshSeconds)} /> : null}
           <title>{props.title}</title>
           <meta name="description" content={props.description} />
+          <meta name="author" content="Hamdan Esmail" />
           <link rel="canonical" href={url} />
           <meta property="og:type" content="website" />
           <meta property="og:site_name" content="Redtape" />
@@ -130,7 +131,13 @@ export function Footer(props: { gridHref: string }) {
         </ul>
       </div>
       <div class="legal">
-        <p>Built by Hamdan Esmail for the TinyFish Compliance Map bounty. A starting point to confirm with a lawyer, not legal advice.</p>
+        <p>
+          Built by{" "}
+          <a href="https://github.com/HamdanEsmail" rel="author">
+            Hamdan Esmail
+          </a>{" "}
+          for the TinyFish Compliance Map bounty. A starting point to confirm with a lawyer, not legal advice.
+        </p>
         <p>Pictures: {creditLine}</p>
       </div>
       <div class="big disp" aria-hidden="true">

@@ -8,44 +8,91 @@ export type CheckKind = "found" | "found_fee_missing" | "quote_missing" | "unrea
 
 export type CheckResult = { kind: CheckKind; text: string };
 
+/** The words of a text: runs of letters and digits, lower-cased. Everything else separates them. */
 function wordsOf(text: string): string[] {
-  return text
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}\s]+/gu, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .split(" ")
-    .filter((w) => w !== "");
+  return text.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
 }
 
-/** Longest contiguous run of words that appears in both arrays, in order. */
+/**
+ * Longest run of the quote's words, in order and unbroken, that is on the page. One pass over the
+ * page: at each page word, only the places where the quote has that same word are looked at, so a
+ * long page costs its length and not its length times the quote's.
+ */
 function longestCommonRun(quote: string[], page: string[]): number {
+  const placesOf = new Map<string, number[]>();
+  quote.forEach((word, i) => {
+    const places = placesOf.get(word);
+    if (places === undefined) placesOf.set(word, [i]);
+    else places.push(i);
+  });
+  // before[i + 1]: the length of the run that ends at quote[i] and at the page word before this one.
+  let before = new Uint32Array(quote.length + 1);
+  let now = new Uint32Array(quote.length + 1);
+  let live = false;
   let best = 0;
-  let prev = new Array<number>(page.length + 1).fill(0);
-  for (const word of quote) {
-    const cur = new Array<number>(page.length + 1).fill(0);
-    for (let j = 0; j < page.length; j++) {
-      if (word === page[j]) {
-        const n = prev[j]! + 1;
-        cur[j + 1] = n;
-        if (n > best) best = n;
+  for (const word of page) {
+    const places = placesOf.get(word);
+    if (places === undefined) {
+      if (live) {
+        before.fill(0);
+        live = false;
       }
+      continue;
     }
-    prev = cur;
+    for (const i of places) {
+      const n = before[i]! + 1;
+      now[i + 1] = n;
+      if (n > best) best = n;
+    }
+    if (best === quote.length) return best;
+    [before, now] = [now, before];
+    now.fill(0);
+    live = true;
   }
   return best;
+}
+
+/**
+ * The parts of the page where a run of `need` of the quote's words could be, each as its words.
+ *
+ * A run that long cannot miss the middle of the quote: of `q` words, every run of `need` holds the
+ * words from `q - need` to `need - 1` (`need` is always more than half of `q`). So the page is
+ * only read around the places where the longest of those words appears, far enough each way to
+ * hold the whole quote three times over. A page without that word has no such run. What this
+ * costs depends on the quote and on how often the word appears, not on how long the page is.
+ */
+function partsNearQuote(q: string[], need: number, page: string): string[][] {
+  const lower = page.toLowerCase();
+  let anchor = q[need - 1]!;
+  for (let i = q.length - need; i < need; i++) if (q[i]!.length > anchor.length) anchor = q[i]!;
+  const reach = 3 * q.reduce((n, word) => n + word.length + 1, 0) + 400;
+  const spans: [number, number][] = [];
+  for (let at = lower.indexOf(anchor); at !== -1; at = lower.indexOf(anchor, at + anchor.length)) {
+    const from = Math.max(0, at - reach);
+    const to = Math.min(lower.length, at + anchor.length + reach);
+    const last = spans[spans.length - 1];
+    if (last !== undefined && from <= last[1]) last[1] = to;
+    else spans.push([from, to]);
+  }
+  return spans.map(([from, to]) => {
+    const words = wordsOf(lower.slice(from, to));
+    // A word cut by the edge of a part is not a word of the page.
+    if (from > 0) words.shift();
+    if (to < lower.length) words.pop();
+    return words;
+  });
 }
 
 /** True when a run of the quote's words, in order, is on the page: at least 8 words (or the whole
  *  quote, when shorter) and at least 60% of the quote's words. */
 export function quoteFound(quote: string, page: string): boolean {
   const q = wordsOf(quote);
-  const p = wordsOf(page);
   if (q.length === 0) return false;
-  const minRun = q.length < 8 ? q.length : 8;
-  const needShare = Math.ceil(q.length * 0.6);
-  const best = longestCommonRun(q, p);
-  return best >= minRun && best >= needShare;
+  const need = Math.max(q.length < 8 ? q.length : 8, Math.ceil(q.length * 0.6));
+  for (const part of partsNearQuote(q, need, page)) {
+    if (longestCommonRun(q, part) >= need) return true;
+  }
+  return false;
 }
 
 const NUMBER = "(?:\\d{1,3}(?:,\\d{3})+|\\d+)(?:\\.\\d+)?";
@@ -56,7 +103,8 @@ const CURRENCY_MARK = `US\\$|S\\$|\\$|£|€|${CURRENCY_WORD}`;
 /** A number with its currency: the mark first ("USD 600", "£50") or a code or word after ("600 dirhams"). */
 const AMOUNT = new RegExp(`(${CURRENCY_MARK})[.:]?\\s*(${NUMBER})|(?<![\\d.,])(${NUMBER})\\s*\\(?(${CURRENCY_WORD})`, "i");
 const ANY_MARK = new RegExp(CURRENCY_MARK, "i");
-const ANY_NUMBER = new RegExp(NUMBER);
+/** A fee that begins with a number: "300", "50 per application", "about 1,200 a year". */
+const LEADING_NUMBER = new RegExp(`^\\s*(?:(?:about|approximately|approx\\.?|around|from|up to)\\s+)?(${NUMBER})(?![\\dA-Za-z])`, "i");
 
 const CODES: [RegExp, string][] = [
   [/^(?:S\$|SGD|Singapore\s+dollars?)$/i, "SGD"],
@@ -75,7 +123,8 @@ function codeOf(mark: string): string | null {
  * The amount of a fee, commas stripped, with its currency. When the fee names a currency, the
  * amount is the first number written beside one, so a form number, a class or a date before it is
  * never taken for money ("Form 1023 filing fee: USD 600" is 600). A fee that names no currency
- * gives its first number.
+ * gives a number only when it begins with one ("300"); a number further in ("course L1") is not
+ * an amount.
  */
 export function firstAmount(fee: string): { text: string; currency: string | null } | null {
   if (/^not stated/i.test(fee.trim())) return null;
@@ -86,8 +135,8 @@ export function firstAmount(fee: string): { text: string; currency: string | nul
     return { text: number.replace(/,/g, ""), currency: codeOf(mark) };
   }
   if (ANY_MARK.test(fee)) return null;
-  const bare = ANY_NUMBER.exec(fee);
-  return bare === null ? null : { text: bare[0].replace(/,/g, ""), currency: null };
+  const bare = LEADING_NUMBER.exec(fee);
+  return bare === null ? null : { text: bare[1]!.replace(/,/g, ""), currency: null };
 }
 
 function amountNumber(digits: string): number | null {

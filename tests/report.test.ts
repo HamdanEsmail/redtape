@@ -310,3 +310,49 @@ describe('"none stated" is a gap', () => {
     expect(asGap("none")).toBe("none");
   });
 });
+
+describe("a fee or a wait that says it is not stated, further in", () => {
+  it("is a gap when it gives no figure and does not say the thing is free", () => {
+    expect(asGap("Theory test fee and practical assessment fee not stated (the regulator does not set them)", "amount")).toBe(
+      "not stated (Theory test fee and practical assessment fee not stated (the regulator does not set them))",
+    );
+    expect(asGap("Processing time is not stated", "amount")).toBe("not stated (Processing time is not stated)");
+  });
+
+  it("stays as written when it gives a figure or says the thing is free", () => {
+    expect(asGap("AED 1,000 (permission); letter fee not stated", "amount")).toBe("AED 1,000 (permission); letter fee not stated");
+    expect(asGap("Flyer ID: free (online test); course fee not stated", "amount")).toBe("Flyer ID: free (online test); course fee not stated");
+    expect(asGap("5 working days for the trainer; the handler's wait is not stated", "amount")).toBe(
+      "5 working days for the trainer; the handler's wait is not stated",
+    );
+    expect(asGap("none (no fee; the bond is not stated)", "amount")).toBe("none (no fee; the bond is not stated)");
+  });
+
+  it("is left alone in a field that is not a fee or a wait", () => {
+    expect(asGap("Annual return; the form number is not stated")).toBe("Annual return; the form number is not stated");
+  });
+
+  it("counts such a fee as not stated in a parsed report", () => {
+    const r = parseReport(
+      reportMd({
+        places: [
+          {
+            name: "Port Aldren",
+            items: [
+              itemMd(1, CATS[0], "Entity", { Fee: "Test fee not stated (set by training schools)" }),
+              itemMd(2, CATS[1], "Licence"),
+              itemMd(3, CATS[2], "Premises"),
+              itemMd(4, CATS[3], "Tax"),
+            ],
+          },
+          { name: "Northhaven", items: CATS.map((c, n) => itemMd(n + 1, c, c, { "Official URL": URLS.north })) },
+          { name: "Eastmere", items: CATS.map((c, n) => itemMd(n + 1, c, c, { "Official URL": URLS.east })) },
+        ],
+      }),
+      asked,
+    );
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.places[0]!.items[0]!.fee).toBe("not stated (Test fee not stated (set by training schools))");
+  });
+});

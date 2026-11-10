@@ -63,6 +63,19 @@ Six faults, each with a test that failed first.
 
 Also: with no TinyFish key, `advance` moves nothing and fails nothing. 221 tests.
 
+## The two saved runs, read on my machine (10 November)
+
+I imported the two finished runs of 9 November into a local copy (free: reading a saved run, Fetch and Search cost nothing) and read both comparisons line by line. The cafe: 21 items, 18 sentences found again on their pages, 3 not. The drone business: 25 items, 19 found, 3 found without their fee, 3 not. What was wrong, and is now fixed with a test each:
+
+- **A fee that says "not stated" further in** ("Theory test fee and practical assessment fee not stated (the regulator does not set them)") was counted as a stated fee and drew red tape. With no figure and no "free" in it, it is now the same gap as a fee that starts with "not stated".
+- **A number inside a name was taken for a fee.** "Flyer ID: free (online test); GVC/RPC-L1: not stated" gave 1, so the United Kingdom's fees were listed instead of added. A fee that names no currency now gives a number only when it begins with one. The United Kingdom reads "at least GBP 536.34".
+- **Sums** are written with their separator: "at least AED 6,700".
+- **A fee lead could be a site map.** It is passed over now.
+- **The home showed the newest saved comparison**, not the first demo. The first demo is featured when it is ready.
+- **The footer** names me on every page with a link to my GitHub profile, and the head carries `meta name="author"`.
+
+**The proof check on a long page.** The largest official page in the two runs is 64,818 characters. Splitting it into words and comparing every quote word with every page word took 6 to 15 ms of processor time for one item, more than a whole request may use on the plan this runs on. The check now looks only around the places where the longest word from the middle of the quote appears (every run long enough to count must hold that word), and compares in one pass. The same item takes about 0.6 ms, and the cost no longer grows with the page. A test compares the result with the plain word-by-word way on 400 made-up pages, and the old and new way agree on all 46 real pages. The every-minute job reads 4 pages in one run in all, not 4 for each comparison. 240 tests.
+
 ## Paid TinyFish calls
 
 None. Tests intercept every outbound request. There is no `.dev.vars` in this project.

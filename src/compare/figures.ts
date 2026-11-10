@@ -91,7 +91,7 @@ export function figuresForPlace(place: string, items: FigureItem[]): PlaceFigure
     if (sameCurrency) {
       const cur = currencies[0];
       const sum = amounts.reduce((s, a) => s + Number(a.amt!.text), 0);
-      const shown = Number.isInteger(sum) ? String(sum) : String(Math.round(sum * 100) / 100);
+      const shown = (Math.round(sum * 100) / 100).toLocaleString("en-US", { maximumFractionDigits: 2 });
       feesSum = cur ? `at least ${cur} ${shown}` : `at least ${shown}`;
     } else {
       feesList = amounts.map((a) => a.raw);

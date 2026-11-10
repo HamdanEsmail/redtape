@@ -21,6 +21,87 @@ describe("quoteFound", () => {
     expect(quoteFound("Renewal is monthly", PAGE)).toBe(false);
   });
 
+  it("needs the run to be unbroken: the same words with others between them do not count", () => {
+    const quote = "Every bakery must hold a food licence before it opens to the public.";
+    expect(quoteFound(quote, "Every bakery must hold a food, in most cases, licence before it opens to the public.")).toBe(false);
+    expect(quoteFound(quote, "Note. Every bakery must hold a food licence before it opens to the public. End.")).toBe(true);
+  });
+
+  it("finds the full sentence after a false start that repeats its first words", () => {
+    const quote = "The fee for the licence is the fee set by the council each year.";
+    const page = "The fee for the permit differs. The fee for the licence is the fee set by the council each year.";
+    expect(quoteFound(quote, page)).toBe(true);
+  });
+
+  it("asks for 60% of a long quote: 12 of 20 words in a row pass, 11 do not", () => {
+    const words = Array.from({ length: 20 }, (_, i) => `word${i}`);
+    const quote = words.join(" ");
+    expect(quoteFound(quote, `start ${words.slice(0, 12).join(" ")} other ${words.slice(12).join(" other ")}`)).toBe(true);
+    expect(quoteFound(quote, `start ${words.slice(0, 11).join(" ")} other ${words.slice(11).join(" other ")}`)).toBe(false);
+  });
+
+  it("splits words the same way in the quote and on the page", () => {
+    expect(quoteFound("You don't need a licence for under-18s' events", "Good news: you don’t need a licence for under-18s’ events.")).toBe(true);
+    expect(quoteFound("Fee: £12.34 per year", "The fee: £12.34 per year, payable online.")).toBe(true);
+  });
+
+  it("agrees with the plain word-by-word comparison on 400 made-up pages", () => {
+    // The reference: every quote word against every page word, the slow and obvious way.
+    const words = (text: string) => text.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
+    const reference = (quote: string, page: string): boolean => {
+      const q = words(quote);
+      const p = words(page);
+      if (q.length === 0) return false;
+      let best = 0;
+      let prev = new Array<number>(p.length + 1).fill(0);
+      for (const word of q) {
+        const cur = new Array<number>(p.length + 1).fill(0);
+        for (let j = 0; j < p.length; j++) {
+          if (word === p[j]) {
+            cur[j + 1] = prev[j]! + 1;
+            if (cur[j + 1]! > best) best = cur[j + 1]!;
+          }
+        }
+        prev = cur;
+      }
+      return best >= (q.length < 8 ? q.length : 8) && best >= Math.ceil(q.length * 0.6);
+    };
+    let seed = 20261110;
+    const rand = (n: number) => {
+      seed = (seed * 1103515245 + 12345) % 2147483648;
+      return seed % n;
+    };
+    const VOCAB = ["a", "the", "fee", "licence", "permit", "of", "for", "bakery", "council", "office", "must", "hold", "registration", "is", "to"];
+    const OTHER = Array.from({ length: 200 }, (_, i) => `other${i}`);
+    const from = (vocab: string[], n: number) => Array.from({ length: n }, () => vocab[rand(vocab.length)]!).join(" ");
+    const sentence = (n: number) => from(VOCAB, n);
+    const SEPARATORS = [" ", ", ", ".\n\n", " | ", " **", "; ", " – ", "  \n"];
+    let found = 0;
+    for (let n = 0; n < 400; n++) {
+      const quoteWords = sentence(1 + rand(24)).split(" ");
+      const keepFrom = rand(quoteWords.length);
+      const keep = quoteWords.slice(keepFrom, keepFrom + 1 + rand(quoteWords.length - keepFrom));
+      const onPage = keep.map((w) => w + SEPARATORS[rand(SEPARATORS.length)]).join("");
+      // Half the pages are made of the quote's own words, half of words the quote never uses.
+      const around = (k: number) => (n % 2 === 0 ? sentence(k) : from(OTHER, k));
+      const page = `${around(rand(900))}. ${rand(4) === 0 ? "" : onPage} ${around(rand(900))}`;
+      const quote = quoteWords.join(" ");
+      const want = reference(quote, page);
+      if (want) found++;
+      expect(quoteFound(quote, page), `case ${n}: "${quote}"`).toBe(want);
+    }
+    expect(found).toBeGreaterThan(40);
+    expect(found).toBeLessThan(360);
+  });
+
+  it("finds a sentence at the very start and at the very end of a page", () => {
+    const quote = "A bakery needs a food licence from the Aldren Licensing Office.";
+    const filler = Array.from({ length: 4000 }, (_, i) => `w${i}`).join(" ");
+    expect(quoteFound(quote, `${quote} ${filler}`)).toBe(true);
+    expect(quoteFound(quote, `${filler} ${quote}`)).toBe(true);
+    expect(quoteFound(quote, `${filler} ${quote.slice(0, 30)}`)).toBe(false);
+  });
+
   it("finds a quote on a 30,000-word page", () => {
     const quote = "A bakery needs a food licence from the Aldren Licensing Office.";
     const words = Array.from({ length: 30_000 }, (_, i) => `w${i}`);
@@ -86,6 +167,13 @@ describe("firstAmount and amountOnPage", () => {
     expect(firstAmount("300")).toEqual({ text: "300", currency: null });
     expect(firstAmount("Section 12 sets the fee in dirhams")).toBeNull();
     expect(firstAmount("free")).toBeNull();
+  });
+
+  it("takes a bare number only when the fee begins with it", () => {
+    expect(firstAmount("50 per application")).toEqual({ text: "50", currency: null });
+    expect(firstAmount("about 1,200 a year")).toEqual({ text: "1200", currency: null });
+    expect(firstAmount("Flyer ID: free (online test); GVC/RPC-L1: not stated")).toBeNull();
+    expect(firstAmount("free for the first 2 years")).toBeNull();
   });
 });
 

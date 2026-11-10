@@ -20,10 +20,15 @@ export function onItemHost(resultUrl: string, itemHost: string): boolean {
   return h === want || h.endsWith(`.${want}`);
 }
 
-/** The first hit on the item's host (or a subdomain of it). Other hosts are ignored. */
+const SITE_MAP = /site[\s_-]?map/i;
+
+/** The first hit on the item's host (or a subdomain of it). Other hosts are ignored, and so is a
+ *  site map: it lists pages and holds no fee. */
 export function pickFeeLead(hits: SearchHit[], itemHost: string): { title: string; url: string } | null {
   for (const hit of hits) {
-    if (onItemHost(hit.url, itemHost)) return { title: hit.title, url: hit.url };
+    if (!onItemHost(hit.url, itemHost)) continue;
+    if (SITE_MAP.test(hit.title) || SITE_MAP.test(hit.url)) continue;
+    return { title: hit.title, url: hit.url };
   }
   return null;
 }

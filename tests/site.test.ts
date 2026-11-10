@@ -107,6 +107,14 @@ describe("the site", () => {
     expect(savedActivity("Open a small cafe")).toBe("Open a small cafe");
   });
 
+  it("features the first demo on the home, not a newer saved comparison", async () => {
+    await insertComparison({ id: "firstdemo001", state: "ready", kept: 1, demo: 1, activity: "open a small cafe", created_at: "2026-11-09T10:00:00.000Z" });
+    await insertComparison({ id: "seconddemo01", state: "ready", kept: 1, demo: 2, activity: "run a kiln", created_at: "2026-11-09T11:00:00.000Z" });
+    const { html } = await page("/");
+    expect(html).toContain("to open a small cafe?");
+    expect(html).not.toContain("to run a kiln?");
+  });
+
   it("starts a comparison from the form and goes to its page", async () => {
     const res = await formPost({
       activity: "open a small bakery",
@@ -562,6 +570,32 @@ describe("about, how, api and not found", () => {
     expect(html).toContain('property="og:image" content="https://redtape.test/assets/social.png"');
     expect(html).toContain('name="twitter:card" content="summary_large_image"');
     expect(html).toContain('href="/favicon.svg"');
+  });
+});
+
+describe("who built it", () => {
+  it("names the builder in the footer of every page, linked to his profile, and in the head", async () => {
+    const id = await readyComparison("builtby00001");
+    await insertComparison({ id: "running00001", state: "researching" });
+    await insertComparison({ id: "failed000001", state: "failed", failed_reason: "timeout" });
+    const paths = [
+      "/",
+      `/comparisons/${id}`,
+      `/comparisons/${id}/brief`,
+      "/comparisons/running00001",
+      "/comparisons/failed000001",
+      "/comparisons",
+      "/how",
+      "/api",
+      "/about",
+      "/no-such-page",
+    ];
+    for (const path of paths) {
+      const { html } = await page(path, undefined, { TINYFISH_API_KEY: "" });
+      const footer = html.slice(html.indexOf("<footer"));
+      expect(footer, path).toMatch(/Built by <a href="https:\/\/github\.com\/HamdanEsmail" rel="author">Hamdan Esmail<\/a>/);
+      expect(html, path).toContain('<meta name="author" content="Hamdan Esmail"/>');
+    }
   });
 });
 

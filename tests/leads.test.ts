@@ -202,6 +202,19 @@ describe("pickFeeLead", () => {
       ),
     ).toEqual({ title: "Official schedule", url: "https://www.licensing.aldren.gov.example/schedule" });
   });
+
+  it("passes over a site map, which holds no fee", () => {
+    expect(
+      pickFeeLead(
+        [
+          { url: "https://licensing.aldren.gov.example/sitemap", title: "Sitemap | Aldren Licensing Office", snippet: "" },
+          { url: "https://licensing.aldren.gov.example/fees", title: "Aldren fee schedule", snippet: "" },
+        ],
+        host,
+      ),
+    ).toEqual({ title: "Aldren fee schedule", url: "https://licensing.aldren.gov.example/fees" });
+    expect(pickFeeLead([{ url: "https://licensing.aldren.gov.example/site-map.html", title: "Site map", snippet: "" }], host)).toBe(null);
+  });
 });
 
 describe("fee leads in advance", () => {

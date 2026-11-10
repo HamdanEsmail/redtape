@@ -55,9 +55,10 @@ export async function notFound(c: AppContext) {
   return c.json({ error: "not_found" }, 404);
 }
 
+/** The first demo when it is ready, else the newest kept comparison that is. */
 async function featuredId(db: D1Database): Promise<string | null> {
   const row = await db
-    .prepare("SELECT id FROM comparisons WHERE state = 'ready' AND kept = 1 ORDER BY created_at DESC LIMIT 1")
+    .prepare("SELECT id FROM comparisons WHERE state = 'ready' AND kept = 1 ORDER BY CASE WHEN demo = 1 THEN 0 ELSE 1 END, created_at DESC LIMIT 1")
     .first<{ id: string }>();
   return row?.id ?? null;
 }
