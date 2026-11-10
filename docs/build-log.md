@@ -130,3 +130,19 @@ said what was happening but not how long the whole thing takes, so a working com
 stuck one. Under its sentence it now says Step 1, 2 or 3 of 3, that a comparison takes 15 to 25 minutes
 in all, how many minutes ago it was started, and that the page refreshes itself. The comparison's JSON
 carries `created_at`. Live as version `28d2ee3b` at 12:12 UTC.
+
+## A running comparison shows that it is working, 10 November
+
+A sentence was not enough. The first screen of a running comparison now shows the three steps (find the
+official sites, read the rules, check every page) with the one it is on, a bar, and a clock, beside the
+usual 15 to 25 minutes. On the last step the bar is a real count, the items checked of all the items;
+before it there is no count to show, so the bar only moves.
+
+The four sites share one small script, `public/assets/wait.js`, served from the site itself and loaded
+`defer`. Every page works without it. On a POST form it marks the form busy, swaps the button's words for
+its `data-busy` label, shows a spinner, and refuses a second press; a page brought back by the Back button
+is reset. On a waiting page it counts the clock every second between the page's own reloads. I pressed
+each live button in a real browser at phone width, with the sending stopped so nothing was started: the
+label changed, the form was busy, and it went once.
+
+Live as version `865720c0` at 12:55 UTC.
