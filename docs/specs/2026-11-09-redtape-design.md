@@ -149,7 +149,8 @@ ends in `.co.uk`.
 ## 6. Government domains
 
 A host is a government domain when it ends with one of: `.gov`, `.gov.<cc>`, `.gouv.<cc>`, `.gob.<cc>`,
-`.go.<cc>`, `.govt.<cc>`, `.gc.ca`, `.mil`, `.europa.eu`, `.admin.ch`, `.bund.de`, or is on a short list kept in
+`.go.<cc>`, `.govt.<cc>`, `.gc.ca`, `.mil`, `.europa.eu`, `.admin.ch`, `.bund.de`, is an older United States
+state, city or county address (`state.<st>.us`, `ci.<city>.<st>.us`, `co.<county>.<st>.us`), or is on a short list kept in
 `src/core/official.ts` (for example `service-public.fr`, `rijksoverheid.nl`, `gov.uk` itself). The list is a
 label and a search preference, never a reason to reject a source.
 

@@ -86,7 +86,8 @@ export function HowPage(props: { featuredId: string | null }) {
       <p>
         TinyFish Search finds the government sites of each place so the research is held to official pages. A source is
         labelled {sourceLabel("gov.uk")} when the host ends with .gov, .gov and a country code, .gouv, .gob, .go, .govt,
-        .gc.ca, .mil, .europa.eu, .admin.ch or .bund.de, or sits on a short list of official portals. Otherwise it is
+        .gc.ca, .mil, .europa.eu, .admin.ch or .bund.de, is an older United States state, city or county address
+        (sos.state.tx.us), or sits on a short list of official portals. Otherwise it is
         labelled {sourceLabel("caa.co.uk")}. The list is a label and a search preference, never a reason to reject a
         source.
       </p>

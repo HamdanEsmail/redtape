@@ -93,6 +93,23 @@ Built before the site is live; nothing is watched until `POST /admin/watch` is c
 
 Not built: reading a Monitor's own history. TinyFish gives none over the API, so a Monitor that stops calling shows only as an old "last read" day. 270 tests.
 
+## Live (10 November)
+
+Deployed with the pages switched off: the database created and its four migrations applied, the three secrets set, every page path 404, the API answering, the admin routes 401 without the token, the hook 404 on a wrong secret.
+
+**The two saved comparisons, on the live Worker.** I adopted the two runs of 9 November by run id (`POST /admin/import`, no cost). The every-minute job did the rest with nobody watching: 48 page reads and 12 searches, the cafe ready in 9 minutes and the drone business in 15.
+
+| | Items | Proved | Sentence there, fee not | Not confirmed | Page not read |
+|---|---|---|---|---|---|
+| A small cafe: Austin, Manchester, Dubai mainland | 21 | 16 | 0 | 3 | 2 |
+| A small drone business: United Kingdom, Singapore, Dubai | 25 | 19 | 3 | 3 | 0 |
+
+The two pages that could not be read are both on Manchester City Council's site. On my machine the same day one of them was read and its sentence found; on the live Worker neither was read. The item says so, counts as a gap and is a question on the lawyer's sheet. I left it as it came out.
+
+**Processor time, from `wrangler tail`.** The plan allows 10 ms a request. A cron run with nothing to do uses 5 to 10 ms. A run that reads and checks 4 pages used 15 to 38 ms, thirteen times in a row, and each ended `ok`: the platform did not cut one. Reading a whole comparison for its page or its JSON took 3 to 18 ms, 9 in the middle. I kept 4 pages a run. If a run is ever cut, each item is claimed and saved on its own and an open claim is taken again after 2 minutes, so the check goes on from where it stopped.
+
+**A Texas state page was labelled wrong.** `sos.state.tx.us` came out as "official body's own site, not a government domain". The older United States addresses (`state.<st>.us`, `ci.<city>.<st>.us`, `co.<county>.<st>.us`) are government domains now. It was the only wrong label among the 16 hosts in the two comparisons. 280 tests.
+
 ## Paid TinyFish calls
 
-None. Tests intercept every outbound request. There is no `.dev.vars` in this project.
+None so far. The three research runs of 9 November were free runs of the day, adopting a saved run costs nothing, and Fetch and Search are free. Tests intercept every outbound request and never reach TinyFish.

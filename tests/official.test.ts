@@ -22,6 +22,11 @@ describe("isGovernmentDomain", () => {
     "bundesamt.bund.de",
     "rijksoverheid.nl",
     "licensing.aldren.gov.example",
+    "sos.state.tx.us",
+    "www.dos.state.ny.us",
+    "state.tx.us",
+    "ci.aldren.tx.us",
+    "www.co.aldren.tx.us",
   ])("labels %s a government domain", (host) => {
     expect(isGovernmentDomain(host)).toBe(true);
   });
@@ -34,6 +39,11 @@ describe("isGovernmentDomain", () => {
     "notagov.com",
     "gouvernment.fr",
     "europa.com",
+    "state.example.com",
+    "realestate.tx.us",
+    "sos.state.texas.us",
+    "ci.tx.us",
+    "aldren.tx.us",
   ])("does not label %s a government domain", (host) => {
     expect(isGovernmentDomain(host)).toBe(false);
   });
