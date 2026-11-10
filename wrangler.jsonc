@@ -7,7 +7,7 @@
     {
       "binding": "DB",
       "database_name": "redtape",
-      "database_id": "7c4e2f91-8b3a-4d5e-9f10-a2b3c4d5e6f7",
+      "database_id": "c3067da7-9179-442c-b427-204e60b6c493",
       "migrations_dir": "migrations"
     }
   ],
