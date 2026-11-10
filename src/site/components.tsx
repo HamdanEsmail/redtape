@@ -59,7 +59,7 @@ export function AskForm(props: HomeForm) {
           <span>place 3</span>
           <input name="place3" value={props.place3} maxlength={80} required />
         </label>
-        <button class="btn" type="submit">
+        <button class="btn" type="submit" data-busy="Measuring…">
           Measure it
         </button>
       </form>

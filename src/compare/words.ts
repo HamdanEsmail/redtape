@@ -19,20 +19,23 @@ export const RUNNING: Record<string, string> = {
   checking: "Reading every official page again to find each quoted sentence.",
 };
 
-const STEP: Record<string, number> = { finding: 1, researching: 2, checking: 3 };
+/** The three steps of a comparison, as its running page names them, and the step each state is on. */
+export const STEPS = ["Find the official sites", "Read the rules", "Check every page"] as const;
+export const STEP_OF: Record<string, number> = { finding: 0, researching: 1, checking: 2 };
+/** What the moving bar of a step with no count to show is called. */
+export const BAR_LABEL: Record<string, string> = {
+  queued: "Waiting for the comparison before it",
+  finding: "Finding the official sites",
+  researching: "Reading the rules",
+  checking: "Checking every page",
+};
+/** "15 to 25 minutes": how long a whole comparison usually takes. */
+export const USUALLY = `${COMPARISON_TAKES_MINUTES.from} to ${COMPARISON_TAKES_MINUTES.to} minutes`;
 
-/**
- * Under a running comparison's sentence: which of the three steps it is on, how long a whole
- * comparison takes, and how long ago this one was asked for. A visitor who is not told how long it
- * takes reads a working comparison as a stuck one.
- */
-export function progressLine(state: string, createdAt: string, now: Date): string {
-  const takes = `${COMPARISON_TAKES_MINUTES.from} to ${COMPARISON_TAKES_MINUTES.to} minutes`;
-  const step = STEP[state];
-  if (step === undefined) return `A comparison takes ${takes} once it starts. This page refreshes itself.`;
-  const minutes = Math.floor((now.getTime() - Date.parse(createdAt)) / 60_000);
-  const ago = !(minutes >= 1) ? "less than a minute ago" : minutes === 1 ? "1 minute ago" : `${minutes} minutes ago`;
-  return `Step ${step} of 3. A comparison takes ${takes} in all, and this one was started ${ago}. This page refreshes itself.`;
+/** Minutes and seconds since the comparison was asked for, as "6:32". Never negative. */
+export function waitClock(createdAt: string, now: Date): string {
+  const seconds = Math.max(0, Math.floor((now.getTime() - Date.parse(createdAt)) / 1000)) || 0;
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
 /** The sentence a running or failed comparison shows. Empty when it is ready. */

@@ -2,7 +2,7 @@
 // full, each cell a details element, the verdict, the lawyer's questions, the exports), or
 // failed (the failure sentence and a link back to the form). An unknown id is a 404 in the shell.
 import type { ComparisonView } from "../../compare/read";
-import { DISCLAIMER, NO_ITEM, progressLine, RUNNING } from "../../compare/words";
+import { BAR_LABEL, DISCLAIMER, NO_ITEM, RUNNING, STEP_OF, STEPS, USUALLY, waitClock } from "../../compare/words";
 import { Exports, Grid, Hero, LawyerQuestions, Verdict } from "../components";
 import { firstSentence, placeAskLine, realItems, shortPlace } from "../format";
 import { Bar, Footer, HOME_DESCRIPTION, Layout } from "../layout";
@@ -11,6 +11,48 @@ export const REFRESH_SECONDS = 5;
 
 function PlacesLine(props: { places: string[] }) {
   return <p>{props.places.map(shortPlace).join(" · ")}</p>;
+}
+
+/**
+ * What a visitor watches while a comparison runs: the three steps with the one it is on, a bar, and a
+ * clock. The last step has a real count (the items checked of all the items), so its bar is that
+ * count; the steps before it have none to show, so their bar only moves. A visitor who sees nothing
+ * move reads a working comparison as a stuck one.
+ */
+function Progress(props: { view: ComparisonView; checked: number; items: number }) {
+  const { view, checked, items } = props;
+  const at = STEP_OF[view.state] ?? -1;
+  const counted = view.state === "checking" && items > 0;
+  return (
+    <div class="progress">
+      <ol class="wait-steps" aria-label="Progress">
+        {STEPS.map((step, i) => (
+          <li class={i < at ? "done" : undefined} aria-current={i === at ? "step" : undefined}>
+            {step}
+          </li>
+        ))}
+      </ol>
+      {counted ? (
+        <progress class="meter" value={checked} max={items}>
+          {checked} of {items}
+        </progress>
+      ) : (
+        <div class="bar" role="progressbar" aria-label={BAR_LABEL[view.state] ?? BAR_LABEL.queued}></div>
+      )}
+      <p class="wait-clock">
+        {counted ? `${checked} of ${items} items checked. ` : ""}
+        {at >= 0 ? (
+          <>
+            <span class="clock" data-since={view.created_at}>
+              {waitClock(view.created_at, new Date())}
+            </span>{" "}
+            so far.{" "}
+          </>
+        ) : null}
+        A comparison usually takes {USUALLY}. This page refreshes itself.
+      </p>
+    </div>
+  );
 }
 
 function AskStatus(props: { view: ComparisonView }) {
@@ -24,12 +66,7 @@ function AskStatus(props: { view: ComparisonView }) {
     <div class="ask">
       <PlacesLine places={view.places} />
       {running ? <p>{said}</p> : null}
-      {view.state === "checking" ? (
-        <p>
-          {checked} of {items.length} items checked
-        </p>
-      ) : null}
-      {running ? <p>{progressLine(view.state, view.created_at, new Date())}</p> : null}
+      {running ? <Progress view={view} checked={checked} items={items.length} /> : null}
       {view.state === "failed" ? (
         <>
           <p>{view.notice}</p>

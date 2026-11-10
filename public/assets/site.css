@@ -176,3 +176,36 @@ a[href]::after{content:" " attr(href)}
 
 /* Long official addresses wrap inside the column instead of running past a phone's edge. */
 .page .body a,.page .body p{overflow-wrap:anywhere}
+
+/* Waiting: what a visitor watches while a comparison runs. The three steps with the one it is on, a
+   bar (a real count on the last step, a moving one before it), and a clock. A pressed button says what
+   it is doing and cannot be pressed twice. */
+.ask .progress{max-width:34rem;margin:0 auto 26px}
+.wait-steps{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;justify-content:center;gap:8px 22px;font-size:var(--small);font-weight:500;color:var(--rose)}
+.wait-steps li{display:flex;align-items:center;gap:8px}
+.wait-steps li::before{content:"";flex:none;width:9px;height:9px;box-shadow:inset 0 0 0 1.5px currentColor}
+.wait-steps li.done{color:var(--bone)}
+.wait-steps li.done::before{content:"✓";width:auto;height:auto;box-shadow:none;font-weight:700;line-height:1}
+.wait-steps li[aria-current=step]{color:var(--bone);font-weight:600}
+.wait-steps li[aria-current=step]::before{background:var(--bone);box-shadow:none}
+.meter,.progress .bar{display:block;width:100%;height:10px;margin-top:16px;border:0;background:rgba(92,6,18,.55)}
+.meter{appearance:none;-webkit-appearance:none;color:var(--bone)}
+.meter::-webkit-progress-bar{background:transparent}
+.meter::-webkit-progress-value{background:var(--bone)}
+.meter::-moz-progress-bar{background:var(--bone)}
+.progress .bar{position:relative;overflow:hidden}
+.progress .bar::after{content:"";position:absolute;top:0;bottom:0;left:0;width:34%;background:var(--bone)}
+.ask .wait-clock{font-size:var(--small);line-height:1.45;max-width:none;margin:12px 0 0;color:var(--rose)}
+.wait-clock .clock{color:var(--bone);font-weight:600;font-variant-numeric:tabular-nums}
+form[aria-busy=true] button[aria-disabled=true]{cursor:progress;pointer-events:none}
+form[aria-busy=true] button[aria-disabled=true]::after{content:"";display:inline-block;width:.85em;height:.85em;margin-left:.6em;vertical-align:-.1em;border:2px solid currentColor;border-right-color:transparent;border-radius:50%}
+@media (prefers-reduced-motion:no-preference){
+.progress .bar::after{animation:bar-run 1.6s cubic-bezier(.2,.7,.2,1) infinite}
+@keyframes bar-run{from{transform:translateX(-100%)}to{transform:translateX(300%)}}
+.wait-steps li[aria-current=step]::before{animation:step-now 1.2s ease-in-out infinite}
+@keyframes step-now{50%{opacity:.25}}
+form[aria-busy=true] button[aria-disabled=true]::after{animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+}
+/* With motion turned off the moving bar stands still as a faint full track; the clock still counts. */
+@media (prefers-reduced-motion:reduce){.progress .bar::after{width:100%;opacity:.4}}

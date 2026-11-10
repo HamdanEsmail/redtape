@@ -86,6 +86,9 @@ describe("the site", () => {
     expect(res.status).toBe(200);
     expect(res.headers.get("content-security-policy")).toContain("https://fonts.googleapis.com");
     expect(html).toContain('method="post" action="/comparisons"');
+    // The button says what it is doing once pressed; the script that shows it is the site's own.
+    expect(html).toMatch(/<button class="btn" type="submit" data-busy="Measuring…">\s*Measure it\s*<\/button>/);
+    expect(html).toContain('<script src="/assets/wait.js" defer=""></script>');
     expect(html).toContain("to start a business?");
     expect(html).toContain(`--n:${toActivity(null).length}`);
     expect(html).toContain("TinyFish Search finds the government sites of each place");
@@ -169,24 +172,29 @@ describe("the site", () => {
     expect(firstScreen(queued.html)).toContain("Waiting for the comparison before it to finish.");
     expect(firstScreen(queued.html)).not.toContain("See every requirement");
     expect(firstScreen(queued.html)).not.toContain("Shortest tape");
-    expect(firstScreen(queued.html)).toContain("A comparison takes 15 to 25 minutes once it starts. This page refreshes itself.");
+    // What a visitor watches while waiting: the three steps, a bar and a clock, all on the first screen.
+    const steps = (html: string) => /<ol class="wait-steps"[^>]*>([\s\S]*?)<\/ol>/.exec(firstScreen(html))?.[1] ?? "";
+    expect(steps(queued.html)).toBe("<li>Find the official sites</li><li>Read the rules</li><li>Check every page</li>");
+    expect(firstScreen(queued.html)).toContain('<div class="bar" role="progressbar" aria-label="Waiting for the comparison before it"></div>');
+    expect(firstScreen(queued.html)).toContain("A comparison usually takes 15 to 25 minutes. This page refreshes itself.");
+    expect(queued.html).toContain('<script src="/assets/wait.js" defer=""></script>');
 
     const startedAgo = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString();
     await insertComparison({ id: "finding00001", state: "finding", created_at: startedAgo(0.3) });
     const finding = await page("/comparisons/finding00001");
     expect(firstScreen(finding.html)).toContain("Finding the official government sites of each place.");
-    expect(firstScreen(finding.html)).toContain(
-      "Step 1 of 3. A comparison takes 15 to 25 minutes in all, and this one was started less than a minute ago. This page refreshes itself.",
-    );
+    expect(steps(finding.html)).toBe('<li aria-current="step">Find the official sites</li><li>Read the rules</li><li>Check every page</li>');
+    expect(firstScreen(finding.html)).toContain('<div class="bar" role="progressbar" aria-label="Finding the official sites"></div>');
+    expect(firstScreen(finding.html)).toMatch(/<span class="clock" data-since="[^"]+">0:[12]\d<\/span> so far\. A comparison usually takes 15 to 25 minutes\. This page refreshes itself\./);
 
     await insertComparison({ id: "research0001", state: "researching", created_at: startedAgo(6.5) });
     const researching = await page("/comparisons/research0001");
     expect(firstScreen(researching.html)).toContain(
       "TinyResearch is reading the official pages. This takes about five to ten minutes.",
     );
-    expect(firstScreen(researching.html)).toContain(
-      "Step 2 of 3. A comparison takes 15 to 25 minutes in all, and this one was started 6 minutes ago. This page refreshes itself.",
-    );
+    expect(steps(researching.html)).toBe('<li class="done">Find the official sites</li><li aria-current="step">Read the rules</li><li>Check every page</li>');
+    expect(firstScreen(researching.html)).toContain('<div class="bar" role="progressbar" aria-label="Reading the rules"></div>');
+    expect(firstScreen(researching.html)).toMatch(/<span class="clock" data-since="[^"]+">6:[23]\d<\/span> so far/);
 
     await insertComparison({ id: "checking0001", state: "checking", created_at: startedAgo(1.5) });
     await insertItem({
@@ -209,7 +217,10 @@ describe("the site", () => {
     expect(checking.html).toContain("1 of 2 items checked");
     expect(firstScreen(checking.html)).toContain("Reading every official page again to find each quoted sentence.");
     expect(firstScreen(checking.html)).toContain("1 of 2 items checked");
-    expect(firstScreen(checking.html)).toContain("Step 3 of 3. A comparison takes 15 to 25 minutes in all, and this one was started 1 minute ago.");
+    expect(steps(checking.html)).toBe('<li class="done">Find the official sites</li><li class="done">Read the rules</li><li aria-current="step">Check every page</li>');
+    // The last step has a real count: the bar is the items checked of all the items.
+    expect(firstScreen(checking.html)).toContain('<progress class="meter" value="1" max="2">1 of 2</progress>');
+    expect(firstScreen(checking.html)).toMatch(/1 of 2 items checked\. <span class="clock" data-since="[^"]+">1:[23]\d<\/span> so far/);
     expect(firstScreen(checking.html)).not.toContain("See every requirement");
     expect(firstScreen(checking.html)).not.toContain("Shortest tape");
   });

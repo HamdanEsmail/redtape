@@ -61,6 +61,7 @@ export function Layout(props: { title: string; description: string; refreshSecon
           <link rel="stylesheet" href="/assets/site.css" />
           {raw("<noscript><style>.in{opacity:1;transform:none}</style></noscript>")}
           <script src="/assets/site.js" defer></script>
+          <script src="/assets/wait.js" defer></script>
         </head>
         <body>{props.children}</body>
       </html>
