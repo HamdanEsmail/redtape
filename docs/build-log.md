@@ -110,6 +110,10 @@ The two pages that could not be read are both on Manchester City Council's site.
 
 **A Texas state page was labelled wrong.** `sos.state.tx.us` came out as "official body's own site, not a government domain". The older United States addresses (`state.<st>.us`, `ci.<city>.<st>.us`, `co.<county>.<st>.us`) are government domains now. It was the only wrong label among the 16 hosts in the two comparisons. 280 tests.
 
+**The home's own example started a new run.** The form is filled with the featured comparison in short ("Austin", "Manchester", "Dubai mainland"), and the saved comparison holds "Austin, Texas" and "Manchester, England". Pressed as shown, it did not find the saved one: it would have started a new research run and used one of the day's two. A saved comparison is now opened for its places in short, in any order, and at any age (it was found only for 7 days, which ends on the day the bounty closes). "Austin, Minnesota" is still another place. Found by reading the form's own values before anyone pressed it. 285 tests.
+
+**The pages, switched on.** Once the Worker is warm the home takes 9 ms of processor time and a comparison's page 13 to 14; the other pages 3 to 7. The first page after a deploy took 31 to 39 ms. All ended `ok`.
+
 ## Paid TinyFish calls
 
 None so far. The three research runs of 9 November were free runs of the day, adopting a saved run costs nothing, and Fetch and Search are free. Tests intercept every outbound request and never reach TinyFish.

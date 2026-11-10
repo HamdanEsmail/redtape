@@ -65,7 +65,9 @@ Each step claims its work in one SQL statement, so the page and the cron never d
 the engine of `../backed`, with other steps.
 
 A comparison with the same activity and the same three places (normalised, order ignored) made in the last 7
-days is reused and costs nothing.
+days is reused and costs nothing. A saved comparison is reused at any age, and also when its places are typed
+in short, the way the home shows its own example: "Austin" opens the saved "Austin, Texas". A place typed with
+another qualifier ("Austin, Minnesota") is another place and starts a new comparison.
 
 ## 4. The question, and reading the answer
 

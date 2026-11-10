@@ -1,6 +1,7 @@
 // Display rules for stored comparison data, as the approved home writes them.
 
 import { isGap, type PlaceFigures } from "../compare/figures";
+import { shortPlace } from "../compare/input";
 import type { ItemView } from "../compare/read";
 import { NO_ITEM } from "../compare/words";
 
@@ -15,10 +16,7 @@ export function short(s: string, n: number): string {
   return s.slice(0, n - 1).replace(/[\s,;:(]+\S*$/, "") + "…";
 }
 
-/** The place name up to a trailing parenthesis or comma: "Austin, Texas" → "Austin". */
-export function shortPlace(name: string): string {
-  return name.replace(/\s*\(.*\)\s*$/, "").replace(/,.*$/, "");
-}
+export { shortPlace };
 
 /** The short fee in a cell: "from USD 300", "free", or "not stated". */
 export function feeShort(fee: string): string {

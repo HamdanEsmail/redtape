@@ -5,7 +5,7 @@ import type { Env } from "../env";
 import { parseReport } from "../research/report";
 import { TinyFishError } from "../tinyfish/client";
 import { getResearch } from "../tinyfish/research";
-import { checkInput, reuseKey, type ComparisonInput } from "./input";
+import { asksFor, checkInput, reuseKey, type ComparisonInput } from "./input";
 import { spendStopReached } from "./money";
 import { itemInserts, type ComparisonState } from "./store";
 import { DAILY_LIMIT, SPEND_STOP, VISITOR_LIMIT } from "./words";
@@ -22,12 +22,28 @@ export function newComparisonId(): string {
   return [...bytes].map((b) => alphabet[b % alphabet.length]).join("");
 }
 
+/**
+ * The stored comparison a request opens instead of starting a new one: one of the last 7 days
+ * with the same activity and places; a saved one at any age; or a saved one whose places were
+ * typed in short, which is how the home shows its own example.
+ */
 export async function findReusable(db: D1Database, input: ComparisonInput, now: Date): Promise<{ id: string; state: ComparisonState } | null> {
   const since = new Date(now.getTime() - REUSE_DAYS * DAY_MS).toISOString();
-  return db
-    .prepare("SELECT id, state FROM comparisons WHERE reuse_key = ? AND created_at >= ? AND state <> 'failed' ORDER BY created_at DESC LIMIT 1")
+  const same = await db
+    .prepare(
+      `SELECT id, state FROM comparisons WHERE reuse_key = ? AND (created_at >= ? OR kept = 1) AND state <> 'failed'
+       ORDER BY kept DESC, created_at DESC LIMIT 1`,
+    )
     .bind(reuseKey(input.activity, input.places), since)
     .first<{ id: string; state: ComparisonState }>();
+  if (same !== null) return same;
+  const { results } = await db
+    .prepare("SELECT id, state, activity, places_json FROM comparisons WHERE kept = 1 AND state <> 'failed' ORDER BY created_at DESC LIMIT 20")
+    .all<{ id: string; state: ComparisonState; activity: string; places_json: string }>();
+  for (const row of results) {
+    if (asksFor(input, row.activity, JSON.parse(row.places_json) as string[])) return { id: row.id, state: row.state };
+  }
+  return null;
 }
 
 async function insertQueued(

@@ -5,6 +5,7 @@ import { env } from "cloudflare:workers";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { recordSpend } from "../src/core/spend";
 import { startPublicComparison } from "../src/compare/create";
+import { reuseKey } from "../src/compare/input";
 import { LAYOUT_FAIL, SPEND_STOP } from "../src/compare/words";
 import {
   PUBLIC_COMPARISONS_PER_DAY,
@@ -386,6 +387,65 @@ describe("the public form limits", () => {
     });
     expect(res.status).toBe(303);
     expect(res.headers.get("location")).toBe(`/comparisons/${started.id}`);
+  });
+
+  const SAVED_PLACES = ["Port Aldren, Westmark", "Northhaven (the old town)", "Eastmere"];
+
+  async function savedExample(id: string, createdAt = T0): Promise<void> {
+    await insertComparison({ id, state: "ready", kept: 1, demo: 1, activity: "open a small bakery", created_at: createdAt });
+    await env.DB.prepare("UPDATE comparisons SET places_json = ?, reuse_key = ? WHERE id = ?")
+      .bind(JSON.stringify(SAVED_PLACES), reuseKey("open a small bakery", SAVED_PLACES), id)
+      .run();
+  }
+
+  const count = async () => (await env.DB.prepare("SELECT COUNT(*) AS n FROM comparisons").first<{ n: number }>())?.n;
+
+  it("opens the saved comparison when the home's own example is sent as it is shown", async () => {
+    await savedExample("savedexampl1");
+    const { html } = await page("/");
+    const shown = (name: string) => new RegExp(`<input name="${name}" value="([^"]*)"`).exec(html)?.[1] ?? "";
+    expect(shown("place1")).toBe("Port Aldren");
+    const res = await formPost({
+      activity: shown("activity"),
+      place1: shown("place1"),
+      place2: shown("place2"),
+      place3: shown("place3"),
+    });
+    expect(res.status).toBe(303);
+    expect(res.headers.get("location")).toBe("/comparisons/savedexampl1");
+    expect(await count()).toBe(1);
+  });
+
+  it("opens a saved comparison for its places in short, in any order, however it is typed", async () => {
+    await savedExample("savedexampl2");
+    const res = await formPost({ activity: " Open a small BAKERY ", place1: "eastmere", place2: "Northhaven", place3: "Port Aldren, Westmark" });
+    expect(res.status).toBe(303);
+    expect(res.headers.get("location")).toBe("/comparisons/savedexampl2");
+    expect(await count()).toBe(1);
+  });
+
+  it("does not take a place with another qualifier for the saved one", async () => {
+    await savedExample("savedexampl3");
+    const res = await formPost({ activity: "open a small bakery", place1: "Port Aldren, Southmark", place2: "Northhaven", place3: "Eastmere" });
+    expect(res.status).toBe(303);
+    expect(res.headers.get("location")).not.toBe("/comparisons/savedexampl3");
+    expect(await count()).toBe(2);
+  });
+
+  it("does not take another activity for the saved one", async () => {
+    await savedExample("savedexampl4");
+    const res = await formPost({ activity: "open a small bakery with a bar", place1: "Port Aldren", place2: "Northhaven", place3: "Eastmere" });
+    expect(res.status).toBe(303);
+    expect(res.headers.get("location")).not.toBe("/comparisons/savedexampl4");
+  });
+
+  it("still opens a saved comparison that is older than a week", async () => {
+    await savedExample("savedexampl5", "2026-10-01T10:00:00.000Z");
+    const full = await formPost({ activity: "open a small bakery", place1: SAVED_PLACES[0]!, place2: SAVED_PLACES[1]!, place3: SAVED_PLACES[2]! });
+    expect(full.headers.get("location")).toBe("/comparisons/savedexampl5");
+    const short = await formPost({ activity: "open a small bakery", place1: "Port Aldren", place2: "Northhaven", place3: "Eastmere" }, "203.0.113.6");
+    expect(short.headers.get("location")).toBe("/comparisons/savedexampl5");
+    expect(await count()).toBe(1);
   });
 
   it("starts nothing from the form when the visitor salt is not set, and says new comparisons are closed", async () => {

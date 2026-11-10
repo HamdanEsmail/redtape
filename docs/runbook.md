@@ -141,8 +141,12 @@ Processor time, measured on the live Worker on 10 November 2026 (Workers Free pl
 |---|---|
 | A cron run with nothing to do | 5 to 10 ms |
 | A cron run that reads and checks 4 official pages | 15 to 38 ms |
-| `GET /api/comparisons/<id>` (the same read a comparison's page makes) | 3 to 18 ms, 9 in the middle |
+| `GET /api/comparisons/<id>` | 3 to 18 ms, 9 in the middle |
 | `GET /api/stats` | 5 to 13 ms |
+| The home, once the Worker is warm | 9 ms |
+| A comparison's page, once warm | 13 to 14 ms |
+| The sheet, the saved list, how it works, API, about, not found | 3 to 7 ms |
+| The first page after a deploy or a quiet spell | 31 to 39 ms |
 
 Every one of these ended `ok`: the platform did not cut a run that went over. If it ever does (`exceededCpu` in the tail), nothing is lost, because each item is claimed and saved on its own and a claim left open is taken again after 2 minutes. The knob is `CHECKS_PER_ADVANCE` in `src/core/limits.ts`: fewer pages in a run, more runs.
 
